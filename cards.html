@@ -1,0 +1,636 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>The Case for Fit - Card Library</title>
+    <meta
+      name="description"
+      content="An interactive evidence map for Trezor × Dawid Skinder."
+    />
+    <link rel="icon" type="image/svg+xml" href="assets/ds-logo.svg" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="styles.css?v=20260420-no-zoom-blur-1" />
+    <script>
+      window.__caseForFitCanvasBounds = {
+        x: -848,
+        y: -726.5,
+        width: 2200,
+        height: 1750,
+      };
+      window.__caseForFitCanvasFitPadding = {
+        top: 64,
+        right: 96,
+        bottom: 64,
+        left: 96,
+      };
+    </script>
+    <script src="infinite-canvas.js" defer></script>
+    <script src="app.js?v=20260420-no-zoom-blur-1" defer></script>
+    <script src="card-connections.js" defer></script>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" defer></script>
+    <script src="map-card.js" defer></script>
+  </head>
+  <body>
+    <main class="stage" aria-label="The Case for Fit evidence map">
+      <canvas class="infinite-canvas" data-infinite-canvas aria-hidden="true"></canvas>
+
+      <div class="canvas-world" data-canvas-world aria-hidden="false">
+        <section class="cards-library" data-card-connections aria-label="Internal reusable card library">
+          <svg class="connection-layer" viewBox="0 0 2200 1750" aria-hidden="true">
+            <line
+              class="connection-line"
+              x1="405"
+              y1="24"
+              x2="749"
+              y2="869"
+              data-connection-line
+              data-connection-from="timeline"
+              data-connection-to="big-image"
+            />
+            <line
+              class="connection-line"
+              x1="1437"
+              y1="209"
+              x2="749"
+              y2="869"
+              data-connection-line
+              data-connection-from="badge"
+              data-connection-to="big-image"
+            />
+            <line
+              class="connection-line"
+              x1="61"
+              y1="378"
+              x2="749"
+              y2="869"
+              data-connection-line
+              data-connection-from="text"
+              data-connection-to="big-image"
+            />
+            <line
+              class="connection-line"
+              x1="405"
+              y1="378"
+              x2="749"
+              y2="869"
+              data-connection-line
+              data-connection-from="text-image"
+              data-connection-to="big-image"
+            />
+            <line
+              class="connection-line"
+              x1="61"
+              y1="947"
+              x2="749"
+              y2="869"
+              data-connection-line
+              data-connection-from="text-image-ext"
+              data-connection-to="big-image"
+            />
+            <line
+              class="connection-line"
+              x1="1093"
+              y1="377"
+              x2="749"
+              y2="869"
+              data-connection-line
+              data-connection-from="achievement"
+              data-connection-to="big-image"
+            />
+            <line
+              class="connection-line"
+              x1="1437"
+              y1="377"
+              x2="749"
+              y2="869"
+              data-connection-line
+              data-connection-from="metric"
+              data-connection-to="big-image"
+            />
+            <line
+              class="connection-line"
+              x1="61"
+              y1="774"
+              x2="749"
+              y2="869"
+              data-connection-line
+              data-connection-from="link"
+              data-connection-to="big-image"
+            />
+            <line
+              class="connection-line"
+              x1="1437"
+              y1="1154"
+              x2="749"
+              y2="869"
+              data-connection-line
+              data-connection-from="big-map"
+              data-connection-to="big-image"
+            />
+          </svg>
+
+          <article
+            class="evidence-card card-timeline"
+            style="--card-x: 344px; --card-y: 0px"
+            data-card-type="timeline"
+            data-card-node="timeline"
+            data-affiliation="ds"
+            data-connection-state="default"
+          >
+            <div class="card-connector" aria-hidden="true">
+              <img class="connector-shape connector-shape-connected" src="assets/card-connection-union.svg" alt="" />
+              <span class="connector-affiliation connector-affiliation-ds">
+                <img class="connector-affiliation-mark connector-affiliation-mark-ds" src="assets/ds_logo_card.svg" alt="" />
+              </span>
+              <span class="connector-node"></span>
+            </div>
+            <div class="card-shell timeline-shell">
+              <section class="timeline-column">
+                <h2 class="card-metric">30d</h2>
+                <div class="card-divider"></div>
+                <ul class="card-list">
+                  <li>Goal nr 1 in 30d</li>
+                  <li>Goal nr 2 in 30d, but this one has got longer sentence</li>
+                  <li>Goal nr 3 in 30d, but this one has got super long and juicy sentence in 3 lines</li>
+                </ul>
+              </section>
+              <section class="timeline-column">
+                <h2 class="card-metric">60d</h2>
+                <div class="card-divider"></div>
+                <ul class="card-list">
+                  <li>Goal nr 1 in 60d</li>
+                  <li>Goal nr 2 in 60d, but this one has got longer sentence</li>
+                </ul>
+              </section>
+              <section class="timeline-column">
+                <h2 class="card-metric">90d</h2>
+                <div class="card-divider"></div>
+                <ul class="card-list">
+                  <li>Goal nr 1 in 90d</li>
+                  <li>Goal nr 2 in 90d, but this one has got longer sentence</li>
+                  <li>Goal nr 3 in 90d, but this one has got super long and juicy sentence in 3 lines</li>
+                </ul>
+              </section>
+            </div>
+          </article>
+
+          <article
+            class="evidence-card card-badge"
+            style="--card-x: 1376px; --card-y: 185px"
+            data-card-type="badge"
+            data-card-node="badge"
+            data-affiliation="ds"
+            data-connection-state="default"
+          >
+            <div class="card-connector" aria-hidden="true">
+              <img class="connector-shape connector-shape-connected" src="assets/card-connection-union.svg" alt="" />
+              <span class="connector-affiliation connector-affiliation-ds">
+                <img class="connector-affiliation-mark connector-affiliation-mark-ds" src="assets/ds_logo_card.svg" alt="" />
+              </span>
+              <span class="connector-node"></span>
+            </div>
+            <div class="card-shell">
+              <h2 class="card-headline">AI-native</h2>
+            </div>
+          </article>
+
+          <article
+            class="evidence-card card-text"
+            style="--card-x: 0px; --card-y: 354px"
+            data-card-type="text"
+            data-card-node="text"
+            data-affiliation="ds"
+            data-connection-state="default"
+          >
+            <div class="card-connector" aria-hidden="true">
+              <img class="connector-shape connector-shape-connected" src="assets/card-connection-union.svg" alt="" />
+              <span class="connector-affiliation connector-affiliation-ds">
+                <img class="connector-affiliation-mark connector-affiliation-mark-ds" src="assets/ds_logo_card.svg" alt="" />
+              </span>
+              <span class="connector-node"></span>
+            </div>
+            <div class="card-shell">
+              <h2 class="card-headline">Test headline nr 1 which is short</h2>
+              <div class="card-body-copy">
+                <p>Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.</p>
+                <p>Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.</p>
+              </div>
+            </div>
+          </article>
+
+          <article
+            class="evidence-card card-text-image"
+            style="--card-x: 344px; --card-y: 354px"
+            data-card-type="text-image"
+            data-card-node="text-image"
+            data-affiliation="ds"
+            data-connection-state="default"
+          >
+            <div class="card-connector" aria-hidden="true">
+              <img class="connector-shape connector-shape-connected" src="assets/card-connection-union.svg" alt="" />
+              <span class="connector-affiliation connector-affiliation-ds">
+                <img class="connector-affiliation-mark connector-affiliation-mark-ds" src="assets/ds_logo_card.svg" alt="" />
+              </span>
+              <span class="connector-node"></span>
+            </div>
+            <div class="card-shell">
+              <h2 class="card-headline">Test headline nr 2 which is little bit longer then nr 1</h2>
+              <img class="card-media card-media-square" src="assets/card-text-image.jpg" alt="" />
+              <p class="card-caption">Way longer test caption 1 so that we can see it works in 2 lines</p>
+              <div class="card-divider"></div>
+            </div>
+          </article>
+
+          <article
+            class="evidence-card card-text-image-ext"
+            style="--card-x: 0px; --card-y: 923px"
+            data-card-type="text-image-ext"
+            data-card-node="text-image-ext"
+            data-affiliation="ds"
+            data-connection-state="default"
+          >
+            <div class="card-connector" aria-hidden="true">
+              <img class="connector-shape connector-shape-connected" src="assets/card-connection-union.svg" alt="" />
+              <span class="connector-affiliation connector-affiliation-ds">
+                <img class="connector-affiliation-mark connector-affiliation-mark-ds" src="assets/ds_logo_card.svg" alt="" />
+              </span>
+              <span class="connector-node"></span>
+            </div>
+            <div class="card-shell">
+              <h2 class="card-headline">Test headline nr 2 which is little bit longer then nr 1</h2>
+              <img class="card-media card-media-square" src="data/assets/dummy_image_small.png" alt="" />
+              <p class="card-caption">Way longer test caption 1 so that we can see it works in 2 lines</p>
+              <div class="card-divider"></div>
+              <div class="card-body-copy">
+                <p>Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.</p>
+                <p>Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.</p>
+              </div>
+            </div>
+          </article>
+
+          <article
+            class="evidence-card card-image"
+            style="--card-x: 688px; --card-y: 353px"
+            data-card-type="image"
+            data-affiliation="ds"
+            data-connection-state="no"
+          >
+            <div class="card-connector" aria-hidden="true">
+              <img class="connector-shape connector-shape-no" src="assets/card-connection-subtract.svg" alt="" />
+              <span class="connector-affiliation connector-affiliation-ds">
+                <img class="connector-affiliation-mark connector-affiliation-mark-ds" src="assets/ds_logo_card.svg" alt="" />
+              </span>
+            </div>
+            <div class="card-shell">
+              <img class="card-media card-media-square" src="assets/card-image.jpg" alt="" />
+              <p class="card-caption">Test caption 2</p>
+              <div class="card-divider"></div>
+            </div>
+          </article>
+
+          <article
+            class="evidence-card card-achievement"
+            style="--card-x: 1032px; --card-y: 353px"
+            data-card-type="achievement"
+            data-card-node="achievement"
+            data-affiliation="ds"
+            data-connection-state="default"
+          >
+            <div class="card-connector" aria-hidden="true">
+              <img class="connector-shape connector-shape-connected" src="assets/card-connection-union.svg" alt="" />
+              <span class="connector-affiliation connector-affiliation-ds">
+                <img class="connector-affiliation-mark connector-affiliation-mark-ds" src="assets/ds_logo_card.svg" alt="" />
+              </span>
+              <span class="connector-node"></span>
+            </div>
+            <div class="card-shell">
+              <h2 class="card-headline">24 x Featured on Behance</h2>
+              <img class="achievement-mark" src="assets/card-behance-achievement.svg" alt="" />
+              <p class="card-caption">Test caption 2</p>
+              <div class="card-divider"></div>
+            </div>
+          </article>
+
+          <article
+            class="evidence-card card-metric-card"
+            style="--card-x: 1376px; --card-y: 353px"
+            data-card-type="metric"
+            data-card-node="metric"
+            data-affiliation="ds"
+            data-connection-state="default"
+          >
+            <div class="card-connector" aria-hidden="true">
+              <img class="connector-shape connector-shape-connected" src="assets/card-connection-union.svg" alt="" />
+              <span class="connector-affiliation connector-affiliation-ds">
+                <img class="connector-affiliation-mark connector-affiliation-mark-ds" src="assets/ds_logo_card.svg" alt="" />
+              </span>
+              <span class="connector-node"></span>
+            </div>
+            <div class="card-shell">
+              <h2 class="card-metric">70/150</h2>
+              <p class="card-headline">Over 70 projects out of 150 done were awarded</p>
+              <div class="card-divider"></div>
+              <p class="card-caption">Test caption 2</p>
+            </div>
+          </article>
+
+          <article
+            class="evidence-card card-link"
+            style="--card-x: 0px; --card-y: 750px"
+            data-card-type="link"
+            data-card-node="link"
+            data-affiliation="ds"
+            data-connection-state="default"
+          >
+            <div class="card-connector" aria-hidden="true">
+              <img class="connector-shape connector-shape-connected" src="assets/card-connection-union.svg" alt="" />
+              <span class="connector-affiliation connector-affiliation-ds">
+                <img class="connector-affiliation-mark connector-affiliation-mark-ds" src="assets/ds_logo_card.svg" alt="" />
+              </span>
+              <span class="connector-node"></span>
+            </div>
+            <div class="card-shell card-link-shell">
+              <a class="card-link-button" href="https://dawidskinder.pl" target="_blank" rel="noreferrer">
+                <span>Portfolio</span>
+                <img class="card-link-arrow" src="assets/card-link-arrow.svg" alt="" width="16" height="16" aria-hidden="true" />
+              </a>
+            </div>
+          </article>
+
+          <article
+            class="evidence-card card-quote"
+            style="--card-x: 1376px; --card-y: 714px"
+            data-card-type="quote"
+            data-affiliation="trezor"
+            data-connection-state="no"
+          >
+            <div class="card-connector" aria-hidden="true">
+              <img class="connector-shape connector-shape-no" src="assets/card-connection-subtract.svg" alt="" />
+              <span class="connector-affiliation connector-affiliation-trezor">
+                <img class="connector-affiliation-mark connector-affiliation-mark-trezor" src="assets/tresor_logo_card.svg" alt="" />
+              </span>
+            </div>
+            <div class="card-shell">
+              <img class="quote-mark" src="assets/card-quote-mark.svg" alt="" />
+              <blockquote class="card-headline">Use AI tools daily as a thought partner, research aid, and prototyping accelerator</blockquote>
+              <div class="card-divider"></div>
+              <p class="card-caption">Test caption 2</p>
+            </div>
+          </article>
+
+          <article
+            class="evidence-card card-map"
+            style="--card-x: 344px; --card-y: 923px"
+            data-card-type="map"
+            data-affiliation="ds"
+            data-connection-state="no"
+          >
+            <div class="card-connector" aria-hidden="true">
+              <img class="connector-shape connector-shape-no" src="assets/card-connection-subtract.svg" alt="" />
+              <span class="connector-affiliation connector-affiliation-ds">
+                <img class="connector-affiliation-mark connector-affiliation-mark-ds" src="assets/ds_logo_card.svg" alt="" />
+              </span>
+            </div>
+            <div class="card-shell">
+              <div
+                class="map-frame"
+                data-map-card
+                role="img"
+                aria-label="Map focused on SatoshiLabs Group a.s., Kundratka 2359/17a, Prague 8, Czech Republic"
+              >
+                <div class="map-card-fallback">
+                  <strong>SatoshiLabs Group a.s.</strong>
+                  <span>Kundratka 2359/17a, Prague 8</span>
+                </div>
+              </div>
+              <p class="card-caption">SatoshiLabs Group a.s. · Kundratka 2359/17a, Prague 8</p>
+              <div class="card-divider"></div>
+            </div>
+          </article>
+
+          <article
+            class="evidence-card card-big-image"
+            style="--card-x: 688px; --card-y: 845px"
+            data-card-type="big-image"
+            data-card-node="big-image"
+            data-affiliation="trezor"
+            data-connection-state="default"
+          >
+            <div class="card-connector" aria-hidden="true">
+              <img class="connector-shape connector-shape-connected" src="assets/card-connection-union.svg" alt="" />
+              <span class="connector-affiliation connector-affiliation-trezor">
+                <img class="connector-affiliation-mark connector-affiliation-mark-trezor" src="assets/tresor_logo_card.svg" alt="" />
+              </span>
+              <span class="connector-node"></span>
+            </div>
+            <div class="card-shell">
+              <img class="card-media card-media-big" src="assets/card-big-image.jpg" alt="" />
+              <p class="card-caption">Test caption 2</p>
+              <div class="card-divider"></div>
+            </div>
+          </article>
+
+          <article
+            class="evidence-card card-big-map"
+            style="--card-x: 1376px; --card-y: 1130px"
+            data-card-type="big-map"
+            data-card-node="big-map"
+            data-affiliation="trezor"
+            data-connection-state="default"
+          >
+            <div class="card-connector" aria-hidden="true">
+              <img class="connector-shape connector-shape-connected" src="assets/card-connection-union.svg" alt="" />
+              <span class="connector-affiliation connector-affiliation-trezor">
+                <img class="connector-affiliation-mark connector-affiliation-mark-trezor" src="assets/tresor_logo_card.svg" alt="" />
+              </span>
+              <span class="connector-node"></span>
+            </div>
+            <div class="card-shell">
+              <div
+                class="map-frame map-frame-big"
+                data-map-card
+                data-map-lat="50.11432588966449"
+                data-map-lng="14.481933249169707"
+                data-map-title="SatoshiLabs Group a.s."
+                data-map-zoom="15"
+                role="img"
+                aria-label="Map focused on SatoshiLabs Group a.s., Kundratka 2359/17a, Prague 8, Czech Republic"
+              >
+                <div class="map-card-fallback">
+                  <strong>SatoshiLabs Group a.s.</strong>
+                  <span>Kundratka 2359/17a, Prague 8</span>
+                </div>
+              </div>
+              <p class="card-caption">SatoshiLabs Group a.s. · Kundratka 2359/17a, Prague 8</p>
+              <div class="card-divider"></div>
+            </div>
+          </article>
+        </section>
+      </div>
+
+      <div class="corner corner-top-left">
+        <div class="brand-pill" aria-label="Dawid Skinder, Trezor, and SatoshiLabs">
+          <img class="brand-logo brand-logo-ds" src="assets/ds-logo.svg" alt="" width="45" height="16" />
+          <span class="brand-cross" aria-hidden="true"></span>
+          <img class="brand-logo brand-logo-trezor" src="assets/tresor_logo.svg" alt="" width="71" height="18" />
+          <span class="brand-cross" aria-hidden="true"></span>
+          <img
+            class="brand-logo brand-logo-satoshilabs"
+            src="assets/satoshilabs_logo.svg"
+            alt=""
+            width="88"
+            height="20"
+          />
+        </div>
+      </div>
+
+      <div class="corner corner-top-right">
+        <div class="game-controls" aria-label="Canvas controls">
+          <button
+            class="control-button control-button-tool is-active"
+            type="button"
+            data-tool-button="cursor"
+            aria-label="Cursor tool"
+            aria-pressed="true"
+          >
+            <img class="control-icon" src="assets/canvas-cursor.svg" alt="" width="12" height="12" />
+          </button>
+          <button
+            class="control-button control-button-tool control-button-hand"
+            type="button"
+            data-tool-button="hand"
+            aria-label="Hand tool"
+            aria-pressed="false"
+          >
+            <img class="control-icon" src="assets/canvas-hand.svg" alt="" width="11" height="12" />
+          </button>
+          <div class="zoom-control">
+            <button
+              class="zoom-pill"
+              type="button"
+              data-zoom-toggle
+              aria-label="Zoom options"
+              aria-expanded="false"
+              aria-haspopup="menu"
+            >
+              <span data-zoom-readout>100%</span>
+            </button>
+            <div class="zoom-menu" data-zoom-menu hidden>
+              <button class="zoom-menu-item" type="button" data-zoom-action="in">
+                <span>Zoom in</span>
+                <span class="zoom-menu-shortcut" aria-hidden="true">Cmd +</span>
+              </button>
+              <button class="zoom-menu-item" type="button" data-zoom-action="out">
+                <span>Zoom out</span>
+                <span class="zoom-menu-shortcut" aria-hidden="true">Cmd -</span>
+              </button>
+              <button class="zoom-menu-item" type="button" data-zoom-action="100">
+                <span>Zoom to 100%</span>
+                <span class="zoom-menu-shortcut" aria-hidden="true">Shift 0</span>
+              </button>
+              <button class="zoom-menu-item" type="button" data-zoom-action="fit">
+                <span>Fit to screen</span>
+                <span class="zoom-menu-shortcut" aria-hidden="true">Shift 1</span>
+              </button>
+            </div>
+          </div>
+          <button class="control-button" type="button" data-reset-view aria-label="Fit canvas to screen">
+            <img class="control-icon" src="assets/canvas-refresh.svg" alt="" width="12" height="12" />
+          </button>
+        </div>
+      </div>
+
+      <div class="corner corner-bottom-left">
+        <div class="profile-pill" role="group" aria-label="More about Dawid Skinder">
+          <span class="profile-label">More about me:</span>
+          <a
+            class="profile-link"
+            href="https://dawidskinder.pl"
+            target="_blank"
+            rel="noreferrer"
+            aria-label="Open Dawid Skinder portfolio"
+          >
+            <img class="profile-icon profile-icon-site" src="assets/site-mark.svg" alt="" width="16" height="16" />
+          </a>
+          <span class="profile-divider" aria-hidden="true"></span>
+          <a
+            class="profile-link"
+            href="https://www.behance.net/dawidskinder"
+            target="_blank"
+            rel="noreferrer"
+            aria-label="Open Dawid Skinder on Behance"
+          >
+            <img class="profile-icon profile-icon-behance" src="assets/behance-mark.svg" alt="" width="25" height="16" />
+          </a>
+          <span class="profile-divider" aria-hidden="true"></span>
+          <a
+            class="profile-link"
+            href="https://github.com/DawidSkinder"
+            target="_blank"
+            rel="noreferrer"
+            aria-label="Open Dawid Skinder on GitHub"
+          >
+            <img class="profile-icon profile-icon-github" src="assets/github-mark.svg" alt="" width="16" height="16" />
+          </a>
+          <span class="profile-divider" aria-hidden="true"></span>
+          <a
+            class="profile-link"
+            href="https://www.linkedin.com/in/dawidskinder/"
+            target="_blank"
+            rel="noreferrer"
+            aria-label="Open Dawid Skinder on LinkedIn"
+          >
+            <img class="profile-icon profile-icon-linkedin" src="assets/linkedin-mark.svg" alt="" width="16" height="16" />
+          </a>
+          <span class="profile-divider" aria-hidden="true"></span>
+          <a
+            class="profile-link"
+            href="https://x.com/DawidSkinder"
+            target="_blank"
+            rel="noreferrer"
+            aria-label="Open Dawid Skinder on X"
+          >
+            <img class="profile-icon profile-icon-x" src="assets/close-mark.svg" alt="" width="18" height="16" />
+          </a>
+        </div>
+      </div>
+
+      <div class="corner corner-bottom-right">
+        <div class="bottom-cluster">
+          <div class="stack-pill" aria-label="AI-native prototype. Human-directed evidence map. Built with Figma and OpenAI.">
+            <span class="stack-copy">
+              <span>AI-native prototype</span>
+              <img class="icon-12" src="assets/spark.svg" alt="" width="12" height="12" />
+              <span>Human-directed evidence map</span>
+            </span>
+            <span class="divider" aria-hidden="true"></span>
+            <img class="icon-figma" src="assets/figma-mark.svg" alt="" width="12" height="19" />
+            <span class="divider" aria-hidden="true"></span>
+            <img class="icon-20" src="assets/openai-mark.svg" alt="" width="20" height="20" />
+          </div>
+          <div class="info-popover">
+            <button
+              class="info-pill"
+              type="button"
+              aria-label="Information"
+              aria-controls="info-panel"
+              aria-expanded="false"
+              aria-describedby="info-panel"
+            >
+              <span class="info-pill-mark">i</span>
+            </button>
+            <div class="info-panel" id="info-panel" role="note" aria-label="Canvas details">
+              <p>
+                Static HTML, CSS, and vanilla JavaScript. Built as a lightweight evidence-map canvas for this conversation.
+              </p>
+              <p>
+                Pan with the hand tool or Space. Zoom from the control pill, then use fit-to-screen to return to the map overview.
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+  </body>
+</html>
