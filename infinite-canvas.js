@@ -58,6 +58,8 @@
       this.dragPointerId = null;
       this.lastPointerX = 0;
       this.lastPointerY = 0;
+      this.activeTouchPointers = new Map();
+      this.pinchGesture = null;
       this.panTravel = 0;
       this.suppressClickUntil = 0;
       this.pointerCaptureElement = null;
@@ -191,6 +193,18 @@
     }
 
     handlePointerDown(event) {
+      if (event.pointerType === "touch" && this.canUseCanvasSurface(event.target)) {
+        this.activeTouchPointers.set(event.pointerId, this.getPointerPosition(event));
+
+        if (this.activeTouchPointers.size >= 2) {
+          this.stopPanning();
+          this.startPinchGesture();
+          event.preventDefault();
+          event.stopPropagation();
+          return;
+        }
+      }
+
       if (
         event.button !== 0 ||
         !this.interactionEnabled ||
@@ -223,6 +237,21 @@
     handlePointerMove(event) {
       const pointer = this.getPointerPosition(event);
 
+      if (event.pointerType === "touch" && this.activeTouchPointers.has(event.pointerId)) {
+        this.activeTouchPointers.set(event.pointerId, pointer);
+
+        if (this.activeTouchPointers.size >= 2) {
+          if (!this.pinchGesture) {
+            this.startPinchGesture();
+          }
+
+          this.updatePinchGesture();
+          event.preventDefault();
+          event.stopPropagation();
+          return;
+        }
+      }
+
       if (this.isPanning && this.dragPointerId === event.pointerId) {
         const deltaX = pointer.x - this.lastPointerX;
         const deltaY = pointer.y - this.lastPointerY;
@@ -252,6 +281,25 @@
     }
 
     handlePointerUp(event) {
+      if (event.pointerType === "touch") {
+        const wasPinching = Boolean(this.pinchGesture);
+
+        this.activeTouchPointers.delete(event.pointerId);
+
+        if (wasPinching) {
+          this.pinchGesture = null;
+          this.suppressClickUntil = performance.now() + 160;
+
+          if (this.activeTouchPointers.size >= 2) {
+            this.startPinchGesture();
+          }
+
+          event.preventDefault();
+          event.stopPropagation();
+          return;
+        }
+      }
+
       if (this.dragPointerId !== event.pointerId) {
         return;
       }
@@ -266,7 +314,7 @@
     }
 
     handlePointerLeave() {
-      if (this.isPanning || !this.pointerInside) {
+      if (this.isPanning || this.pinchGesture || !this.pointerInside) {
         return;
       }
 
@@ -309,6 +357,8 @@
     handleWindowBlur() {
       this.spacePressed = false;
       this.pointerInside = false;
+      this.activeTouchPointers.clear();
+      this.pinchGesture = null;
       this.stopPanning();
       this.syncStageState();
       this.scheduleRender();
@@ -359,6 +409,68 @@
       document.body.classList.remove("is-canvas-panning");
       this.syncStageState();
       this.notifyStateChange();
+    }
+
+    getPinchPointers() {
+      return Array.from(this.activeTouchPointers.values()).slice(0, 2);
+    }
+
+    getPinchMetrics() {
+      const [firstPointer, secondPointer] = this.getPinchPointers();
+
+      if (!firstPointer || !secondPointer) {
+        return null;
+      }
+
+      return {
+        centerX: (firstPointer.x + secondPointer.x) / 2,
+        centerY: (firstPointer.y + secondPointer.y) / 2,
+        distance: Math.hypot(secondPointer.x - firstPointer.x, secondPointer.y - firstPointer.y),
+      };
+    }
+
+    startPinchGesture() {
+      if (!this.interactionEnabled) {
+        return;
+      }
+
+      const metrics = this.getPinchMetrics();
+
+      if (!metrics || metrics.distance <= 0) {
+        return;
+      }
+
+      this.cancelViewAnimation();
+      this.pinchGesture = {
+        startDistance: metrics.distance,
+        startScale: this.scale,
+        worldX: (metrics.centerX - this.offsetX) / this.scale,
+        worldY: (metrics.centerY - this.offsetY) / this.scale,
+      };
+    }
+
+    updatePinchGesture() {
+      const metrics = this.getPinchMetrics();
+
+      if (!this.pinchGesture || !metrics || metrics.distance <= 0) {
+        return;
+      }
+
+      const nextScale = clamp(
+        this.pinchGesture.startScale * (metrics.distance / this.pinchGesture.startDistance),
+        this.minScale,
+        this.maxScale,
+      );
+
+      this.scale = nextScale;
+      this.offsetX = metrics.centerX - this.pinchGesture.worldX * nextScale;
+      this.offsetY = metrics.centerY - this.pinchGesture.worldY * nextScale;
+      this.pointerX = metrics.centerX;
+      this.pointerY = metrics.centerY;
+      this.pointerInside = this.isWithinCanvas(metrics.centerX, metrics.centerY);
+
+      this.notifyStateChange();
+      this.scheduleRender();
     }
 
     syncStageState() {

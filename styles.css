@@ -61,6 +61,7 @@ body.is-canvas-panning {
   min-height: 520px;
   background: var(--ds-bg);
   overflow: hidden;
+  touch-action: none;
 }
 
 .infinite-canvas {
