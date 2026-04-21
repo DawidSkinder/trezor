@@ -22,6 +22,7 @@ let infiniteCanvas = null;
 let isZoomMenuOpen = false;
 let pendingCanvasState = null;
 let canvasStateFrame = 0;
+let appliedCanvasState = null;
 let mobileCardPreview = null;
 
 function isCanvasInteractionEnabled() {
@@ -65,6 +66,7 @@ function applyCanvasState(state) {
   updateZoomReadout(state);
   syncToolButtonsWithCanvasState(state);
   syncCanvasWorld(state);
+  appliedCanvasState = state ? { ...state } : null;
 }
 
 function scheduleCanvasStateSync(state) {
@@ -80,6 +82,23 @@ function scheduleCanvasStateSync(state) {
     pendingCanvasState = null;
     applyCanvasState(nextState);
   });
+}
+
+function flushCanvasStateSync() {
+  if (!infiniteCanvas) {
+    return null;
+  }
+
+  if (canvasStateFrame) {
+    window.cancelAnimationFrame(canvasStateFrame);
+    canvasStateFrame = 0;
+  }
+
+  pendingCanvasState = null;
+
+  const state = infiniteCanvas.getState();
+  applyCanvasState(state);
+  return state;
 }
 
 function setZoomMenuOpen(nextOpen) {
@@ -311,6 +330,10 @@ function resetCanvasView({ animate = true, requireBounds = false } = {}) {
     return false;
   }
 
+  if (requireBounds && !getCanvasContentBounds()) {
+    return false;
+  }
+
   const homeView = getFitView();
 
   if (!homeView) {
@@ -408,11 +431,14 @@ if (canvasElement && window.InfiniteCanvasBackground) {
   });
 
   infiniteCanvas.mount();
-  resetCanvasView({ animate: false });
+  resetCanvasView({ animate: false, requireBounds: true });
 
   window.__canvasCopy = {
     infiniteCanvas,
     getState: () => infiniteCanvas?.getState() ?? null,
+    getAppliedState: () => appliedCanvasState,
+    flushState: flushCanvasStateSync,
+    getFitView,
     resetView: resetCanvasView,
     fitToScreen: resetCanvasView,
     animateFitToScreen: animateCanvasFitToScreen,

@@ -67,6 +67,26 @@
     worldHoldMs: 2000,
     fitDurationMs: 520,
   };
+  const STARTUP_GATE = {
+    maxAttempts: 240,
+    settleFrames: 2,
+    scaleTolerance: 0.002,
+    offsetTolerance: 2,
+  };
+  const startupDiagnostics = {
+    startedAt: performance.now(),
+    events: [],
+  };
+
+  window.__caseForFitStartupDiagnostics = startupDiagnostics;
+
+  function recordStartupEvent(name, detail = {}) {
+    startupDiagnostics.events.push({
+      name,
+      atMs: Math.round(performance.now() - startupDiagnostics.startedAt),
+      ...detail,
+    });
+  }
 
   function parseCsv(text) {
     const rows = [];
@@ -1513,18 +1533,45 @@
     await nextFrame();
   }
 
+  function setCanvasWorldVisible(isVisible) {
+    const canvasWorld = mapRoot.closest("[data-canvas-world]");
+
+    if (!canvasWorld) {
+      return;
+    }
+
+    if (isVisible) {
+      canvasWorld.style.opacity = "";
+      canvasWorld.style.visibility = "";
+      canvasWorld.removeAttribute("data-startup-hidden");
+      canvasWorld.setAttribute("aria-hidden", "false");
+      return;
+    }
+
+    canvasWorld.style.opacity = "0";
+    canvasWorld.style.visibility = "hidden";
+    canvasWorld.dataset.startupHidden = "";
+    canvasWorld.setAttribute("aria-hidden", "true");
+  }
+
   function setCanvasReady() {
     const stage = mapRoot.closest(".stage");
 
     stage?.classList.remove("is-canvas-loading");
     stage?.classList.remove("is-intro-running", "is-intro-empty", "is-intro-thesis", "is-intro-world");
     stage?.classList.add("is-canvas-ready");
+    setCanvasWorldVisible(true);
+    recordStartupEvent("canvas-ready");
     document.dispatchEvent(new CustomEvent("caseforfit:canvas-ready"));
   }
 
   function setIntroStageState(stage, state) {
     if (!stage) {
       return;
+    }
+
+    if (state === "empty") {
+      setCanvasWorldVisible(false);
     }
 
     stage.classList.remove("is-intro-empty", "is-intro-thesis", "is-intro-world");
@@ -1534,12 +1581,141 @@
     }
 
     stage.offsetWidth;
+
+    if (state === "thesis" || state === "world") {
+      setCanvasWorldVisible(true);
+    }
   }
 
   function delay(ms) {
     return new Promise((resolve) => {
       window.setTimeout(resolve, ms);
     });
+  }
+
+  async function waitFrames(frameCount) {
+    for (let index = 0; index < frameCount; index += 1) {
+      await nextFrame();
+    }
+  }
+
+  function getPositiveCanvasBounds() {
+    const bounds = window.__caseForFitCanvasBounds;
+
+    if (
+      !bounds ||
+      !Number.isFinite(bounds.x) ||
+      !Number.isFinite(bounds.y) ||
+      !Number.isFinite(bounds.width) ||
+      !Number.isFinite(bounds.height) ||
+      bounds.width <= 0 ||
+      bounds.height <= 0
+    ) {
+      return null;
+    }
+
+    return bounds;
+  }
+
+  function getCanvasState() {
+    return window.__canvasCopy?.getState?.() ?? null;
+  }
+
+  function isCanvasStateMeasurable(state = getCanvasState()) {
+    return Boolean(
+      state &&
+        Number.isFinite(state.viewportWidth) &&
+        Number.isFinite(state.viewportHeight) &&
+        state.viewportWidth > 0 &&
+        state.viewportHeight > 0,
+    );
+  }
+
+  function getFitPadding() {
+    const customPadding = window.__caseForFitCanvasFitPadding;
+    const fallbackPadding = 160;
+
+    if (Number.isFinite(customPadding) && customPadding >= 0) {
+      return {
+        top: customPadding,
+        right: customPadding,
+        bottom: customPadding,
+        left: customPadding,
+      };
+    }
+
+    if (customPadding && typeof customPadding === "object") {
+      return {
+        top: Number.isFinite(customPadding.top) && customPadding.top >= 0 ? customPadding.top : fallbackPadding,
+        right: Number.isFinite(customPadding.right) && customPadding.right >= 0 ? customPadding.right : fallbackPadding,
+        bottom: Number.isFinite(customPadding.bottom) && customPadding.bottom >= 0 ? customPadding.bottom : fallbackPadding,
+        left: Number.isFinite(customPadding.left) && customPadding.left >= 0 ? customPadding.left : fallbackPadding,
+      };
+    }
+
+    return {
+      top: fallbackPadding,
+      right: fallbackPadding,
+      bottom: fallbackPadding,
+      left: fallbackPadding,
+    };
+  }
+
+  function getVerifiedFitView(state = getCanvasState(), bounds = getPositiveCanvasBounds()) {
+    if (!isCanvasStateMeasurable(state) || !bounds) {
+      return null;
+    }
+
+    const padding = getFitPadding();
+    const availableWidth = Math.max(state.viewportWidth - padding.left - padding.right, 1);
+    const availableHeight = Math.max(state.viewportHeight - padding.top - padding.bottom, 1);
+    const minScale = Number.isFinite(state.minScale) ? state.minScale : 0.05;
+    const maxScale = Number.isFinite(state.maxScale) ? state.maxScale : 1;
+    const targetScale = Math.min(availableWidth / bounds.width, availableHeight / bounds.height);
+    const scale = Math.min(Math.max(targetScale, minScale), maxScale);
+    const safeCenterX = padding.left + availableWidth / 2;
+    const safeCenterY = padding.top + availableHeight / 2;
+
+    return {
+      scale,
+      offsetX: safeCenterX - (bounds.x + bounds.width / 2) * scale,
+      offsetY: safeCenterY - (bounds.y + bounds.height / 2) * scale,
+    };
+  }
+
+  function isViewCloseToExpected(state, expected) {
+    if (!state || !expected) {
+      return false;
+    }
+
+    return (
+      Math.abs(state.scale - expected.scale) <= STARTUP_GATE.scaleTolerance &&
+      Math.abs(state.offsetX - expected.offsetX) <= STARTUP_GATE.offsetTolerance &&
+      Math.abs(state.offsetY - expected.offsetY) <= STARTUP_GATE.offsetTolerance
+    );
+  }
+
+  async function waitForAppliedView(expected, phase, maxAttempts = STARTUP_GATE.maxAttempts) {
+    for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+      window.__canvasCopy?.flushState?.();
+      await nextFrame();
+
+      const appliedState = window.__canvasCopy?.getAppliedState?.() ?? null;
+
+      if (isViewCloseToExpected(appliedState, expected)) {
+        recordStartupEvent("view-applied", {
+          phase,
+          attempts: attempt,
+          scale: Number(appliedState.scale.toFixed(4)),
+          offsetX: Math.round(appliedState.offsetX),
+          offsetY: Math.round(appliedState.offsetY),
+        });
+        return true;
+      }
+    }
+
+    recordStartupEvent("view-apply-failed", { phase, attempts: maxAttempts });
+    return false;
   }
 
   function getThesisCenter(root) {
@@ -1555,12 +1731,25 @@
     };
   }
 
-  function centerCanvasOnThesis(thesisCenter, maxAttempts = 6) {
+  function centerCanvasOnThesis(thesisCenter, maxAttempts = STARTUP_GATE.maxAttempts) {
     return new Promise((resolve) => {
       let attempt = 0;
 
-      const tryCenter = () => {
+      const tryCenter = async () => {
         attempt += 1;
+        const state = getCanvasState();
+
+        if (!isCanvasStateMeasurable(state)) {
+          if (attempt >= maxAttempts) {
+            recordStartupEvent("thesis-center-failed", { reason: "canvas-state-not-measurable", attempts: attempt });
+            resolve(false);
+            return;
+          }
+
+          window.requestAnimationFrame(tryCenter);
+          return;
+        }
+
         const didCenter = window.__canvasCopy?.centerOnWorldPoint?.({
           x: thesisCenter?.x,
           y: thesisCenter?.y,
@@ -1568,8 +1757,33 @@
           animate: false,
         });
 
-        if (didCenter || attempt >= maxAttempts) {
-          resolve(Boolean(didCenter));
+        if (didCenter) {
+          const appliedState = getCanvasState();
+
+          if (isCanvasStateMeasurable(appliedState)) {
+            const minScale = Number.isFinite(appliedState.minScale) ? appliedState.minScale : 0.05;
+            const maxScale = Number.isFinite(appliedState.maxScale) ? appliedState.maxScale : 1;
+            const targetScale = Math.min(Math.max(1, minScale), maxScale);
+            const expectedView = {
+              scale: targetScale,
+              offsetX: appliedState.viewportWidth / 2 - thesisCenter.x * targetScale,
+              offsetY: appliedState.viewportHeight / 2 - thesisCenter.y * targetScale,
+            };
+
+            if (await waitForAppliedView(expectedView, "thesis-center")) {
+              recordStartupEvent("thesis-centered", { attempts: attempt });
+              resolve(true);
+              return;
+            }
+          }
+        }
+
+        if (attempt >= maxAttempts) {
+          recordStartupEvent("thesis-center-failed", {
+            reason: didCenter ? "center-verification-failed" : "center-helper-returned-false",
+            attempts: attempt,
+          });
+          resolve(false);
           return;
         }
 
@@ -1580,22 +1794,68 @@
     });
   }
 
-  function fitCanvasToReadyBounds({ animate = false, duration = INTRO_TIMING.fitDurationMs, maxAttempts = 6 } = {}) {
+  function fitCanvasToReadyBounds({
+    animate = false,
+    duration = INTRO_TIMING.fitDurationMs,
+    maxAttempts = STARTUP_GATE.maxAttempts,
+    phase = "fit",
+  } = {}) {
     return new Promise((resolve) => {
       let attempt = 0;
 
       const tryFit = async () => {
         attempt += 1;
-        const didFit = animate
-          ? window.__canvasCopy?.fitToScreen?.({ animate: true, requireBounds: true })
-          : window.__canvasCopy?.fitToScreen?.({ animate: false, requireBounds: true });
+        const state = getCanvasState();
+        const bounds = getPositiveCanvasBounds();
+        const expectedView = getVerifiedFitView(state, bounds);
 
-        if (didFit || attempt >= maxAttempts) {
-          if (didFit && animate) {
-            await delay(duration);
+        if (!window.__canvasCopy || !isCanvasStateMeasurable(state) || !bounds || !expectedView) {
+          if (attempt >= maxAttempts) {
+            recordStartupEvent("fit-failed", {
+              phase,
+              reason: !window.__canvasCopy
+                ? "canvas-api-missing"
+                : !isCanvasStateMeasurable(state)
+                  ? "canvas-state-not-measurable"
+                  : "bounds-missing",
+              attempts: attempt,
+            });
+            resolve(false);
+            return;
           }
 
-          resolve(Boolean(didFit));
+          window.requestAnimationFrame(tryFit);
+          return;
+        }
+
+        const didFit = animate
+          ? await window.__canvasCopy?.animateFitToScreen?.({ duration, requireBounds: true })
+          : window.__canvasCopy?.fitToScreen?.({ animate: false, requireBounds: true });
+
+        if (didFit) {
+          const isVerified = await waitForAppliedView(expectedView, phase);
+          const appliedState = window.__canvasCopy?.getAppliedState?.() ?? getCanvasState();
+
+          if (isVerified) {
+            recordStartupEvent("fit-verified", {
+              phase,
+              attempts: attempt,
+              scale: Number(appliedState.scale.toFixed(4)),
+              offsetX: Math.round(appliedState.offsetX),
+              offsetY: Math.round(appliedState.offsetY),
+            });
+            resolve(true);
+            return;
+          }
+        }
+
+        if (attempt >= maxAttempts) {
+          recordStartupEvent("fit-failed", {
+            phase,
+            reason: didFit ? "fit-verification-failed" : "fit-helper-returned-false",
+            attempts: attempt,
+          });
+          resolve(false);
           return;
         }
 
@@ -1611,17 +1871,27 @@
     const thesisCenter = getThesisCenter(root);
 
     if (!stage || !thesisCenter || shouldSkipIntro()) {
-      await fitCanvasToReadyBounds({ animate: false });
+      const didFit = await fitCanvasToReadyBounds({ animate: false, phase: "skip-intro" });
+
+      if (!didFit) {
+        throw new Error("Canvas startup failed before ready state: fit-to-screen could not be verified.");
+      }
+
       setCanvasReady();
       return;
     }
 
     try {
       window.__canvasCopy?.setInteractionEnabled?.(false);
-      await centerCanvasOnThesis(thesisCenter);
+      const didCenter = await centerCanvasOnThesis(thesisCenter);
 
-      stage.classList.remove("is-canvas-loading", "is-canvas-ready");
-      stage.classList.add("is-intro-running");
+      if (!didCenter) {
+        throw new Error("Canvas startup failed before intro: thesis camera position could not be verified.");
+      }
+
+      stage.classList.remove("is-canvas-ready");
+      stage.classList.add("is-intro-running", "is-intro-empty");
+      stage.classList.remove("is-canvas-loading");
       setIntroStageState(stage, "empty");
 
       await delay(INTRO_TIMING.emptyHoldMs);
@@ -1631,10 +1901,15 @@
       setIntroStageState(stage, "world");
 
       await delay(INTRO_TIMING.worldHoldMs);
-      await fitCanvasToReadyBounds({
+      const didFinalFit = await fitCanvasToReadyBounds({
         animate: true,
         duration: INTRO_TIMING.fitDurationMs,
+        phase: "intro-final-fit",
       });
+
+      if (!didFinalFit) {
+        throw new Error("Canvas startup failed before ready state: final intro fit could not be verified.");
+      }
 
       setCanvasReady();
       document.dispatchEvent(new CustomEvent("caseforfit:canvas-intro-complete"));
@@ -1644,6 +1919,8 @@
   }
 
   function renderError(error) {
+    recordStartupEvent("canvas-error", { message: error.message });
+    setCanvasWorldVisible(true);
     mapRoot
       .closest(".stage")
       ?.classList.remove("is-canvas-loading", "is-intro-running", "is-intro-empty", "is-intro-thesis", "is-intro-world");
@@ -1657,7 +1934,10 @@
   }
 
   async function renderCanvas() {
+    recordStartupEvent("render-start");
+    setCanvasWorldVisible(false);
     const { cards, connections, layout: layoutRows } = createEvidenceModel(await loadCsv(DATA_PATHS.evidenceMap));
+    recordStartupEvent("data-loaded");
 
     const layoutById = new Map(layoutRows.map((layout) => [layout.id, layout]));
     const renderableCards = cards.filter(
@@ -1719,11 +1999,16 @@
     positionDsMasonryClusters(mapRoot, normalizedCards);
     positionTrezorRingCards(mapRoot, normalizedCards);
     updateBounds(mapRoot);
+    recordStartupEvent("bounds-ready", {
+      width: Math.round(window.__caseForFitCanvasBounds.width),
+      height: Math.round(window.__caseForFitCanvasBounds.height),
+    });
 
     await nextFrame();
 
     connectionLayer.setAttribute("viewBox", `0 0 ${mapRoot.offsetWidth} ${mapRoot.offsetHeight}`);
     drawConnections(connectionLayer, mapRoot, renderedConnections);
+    recordStartupEvent("connections-rendered", { count: renderedConnections.length });
     document.dispatchEvent(new CustomEvent("caseforfit:canvas-rendered"));
     await runIntroSequence(mapRoot);
   }

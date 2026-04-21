@@ -25,12 +25,27 @@
     />
     <meta name="twitter:image" content="https://trezor.dawidskinder.pl/assets/ds_tresor_ogimage.png" />
     <link rel="icon" type="image/svg+xml" href="assets/ds-logo.svg" />
+    <style>
+      .stage.is-canvas-loading [data-canvas-world],
+      .stage.is-intro-empty [data-canvas-world] {
+        opacity: 0;
+        pointer-events: none;
+        visibility: hidden;
+      }
+
+      .stage.is-intro-thesis [data-canvas-world],
+      .stage.is-intro-world [data-canvas-world],
+      .stage.is-canvas-ready [data-canvas-world] {
+        opacity: 1;
+        visibility: visible;
+      }
+    </style>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    <link rel="stylesheet" href="styles.css?v=20260421-mobile-safe-nav-1" />
+    <link rel="stylesheet" href="styles.css?v=20260421-startup-gate-3" />
     <script src="infinite-canvas.js?v=20260421-intro-mobile-center-1" defer></script>
-    <script src="app.js?v=20260421-intro-mobile-center-1" defer></script>
+    <script src="app.js?v=20260421-startup-gate-3" defer></script>
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" defer></script>
-    <script src="canvas-data.js?v=20260421-intro-fit-1" defer></script>
+    <script src="canvas-data.js?v=20260421-startup-gate-3" defer></script>
     <script src="map-card.js?v=20260421-mobile-safe-nav-1" defer></script>
     <script src="card-connections.js?v=20260421-mobile-safe-nav-1" defer></script>
   </head>
@@ -38,18 +53,8 @@
     <main class="stage is-canvas-loading" aria-label="The Case for Fit evidence map">
       <canvas class="infinite-canvas" data-infinite-canvas aria-hidden="true"></canvas>
 
-      <div class="canvas-world" data-canvas-world aria-hidden="false">
-        <section class="evidence-map" data-evidence-map data-card-connections aria-label="The Case for Fit evidence map">
-          <section class="landing-copy evidence-map-thesis" aria-labelledby="landing-title">
-            <h1 class="landing-title" id="landing-title">The Case for Fit</h1>
-            <p class="landing-subtitle">
-              AI Native Product Designer<br />Trezor × Dawid Skinder
-            </p>
-            <p class="landing-meta">
-              <span>Loading evidence map</span>
-            </p>
-          </section>
-        </section>
+      <div class="canvas-world" data-canvas-world data-startup-hidden aria-hidden="true" style="opacity: 0; visibility: hidden">
+        <section class="evidence-map" data-evidence-map data-card-connections aria-label="The Case for Fit evidence map"></section>
       </div>
 
       <div class="corner corner-top-left">

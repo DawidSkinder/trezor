@@ -162,8 +162,18 @@ body.is-canvas-panning {
   text-rendering: geometricPrecision;
 }
 
-.stage.is-canvas-loading .canvas-world {
+.stage.is-canvas-loading .canvas-world,
+.stage.is-intro-empty .canvas-world {
+  opacity: 0;
+  pointer-events: none;
   visibility: hidden;
+}
+
+.stage.is-intro-thesis .canvas-world,
+.stage.is-intro-world .canvas-world,
+.stage.is-canvas-ready .canvas-world {
+  opacity: 1;
+  visibility: visible;
 }
 
 .stage.is-intro-running .evidence-map-thesis,
