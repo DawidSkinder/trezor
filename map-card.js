@@ -1,5 +1,18 @@
 (function () {
+  const staticMapQuery = window.matchMedia("(max-width: 767px), (pointer: coarse)");
+
+  function keepStaticMapFallbacks() {
+    for (const mapElement of document.querySelectorAll("[data-map-card]:not([data-map-ready])")) {
+      mapElement.dataset.mapReady = "static";
+    }
+  }
+
   function initMapCards() {
+    if (staticMapQuery.matches) {
+      keepStaticMapFallbacks();
+      return;
+    }
+
     const mapElements = Array.from(document.querySelectorAll("[data-map-card]:not([data-map-ready])"));
 
     if (!mapElements.length || !window.L) {

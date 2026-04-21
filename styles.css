@@ -65,6 +65,10 @@ body.is-canvas-panning {
   touch-action: none;
 }
 
+.stage.is-touch-navigating {
+  cursor: grabbing;
+}
+
 .infinite-canvas {
   position: absolute;
   inset: 0;
@@ -85,6 +89,63 @@ body.is-canvas-panning {
 .stage.is-panning .canvas-world,
 .stage.is-panning .canvas-world * {
   cursor: grabbing;
+}
+
+@media (pointer: coarse) {
+  .canvas-world {
+    text-rendering: auto;
+  }
+
+  .stage.is-touch-navigating .canvas-world,
+  .stage.is-touch-navigating .evidence-card,
+  .stage.is-touch-navigating .evidence-card *,
+  .stage.is-touch-navigating .connection-layer,
+  .stage.is-touch-navigating .ds-cluster-title,
+  .stage.is-touch-navigating .evidence-map-thesis {
+    animation: none !important;
+    transition: none !important;
+  }
+
+  .stage.is-touch-navigating .connection-layer {
+    display: none;
+  }
+
+  .stage.is-touch-navigating .evidence-card {
+    z-index: 1;
+    pointer-events: none;
+  }
+
+  .stage.is-touch-navigating .card-shell {
+    background: rgb(35 37 39 / 72%);
+    box-shadow: none;
+    filter: none;
+    transition: none;
+  }
+
+  .stage.is-touch-navigating .card-shell > *,
+  .stage.is-touch-navigating .connector-affiliation-mark,
+  .stage.is-touch-navigating .map-frame .leaflet-pane,
+  .stage.is-touch-navigating .map-frame .leaflet-control-container {
+    visibility: hidden;
+  }
+
+  .stage.is-touch-navigating .connector-shape {
+    filter: none;
+    opacity: 0.36;
+    transition: none;
+  }
+
+  .stage.is-touch-navigating .connector-affiliation,
+  .stage.is-touch-navigating .connector-node {
+    opacity: 0.45;
+    transition: none;
+  }
+
+  .stage.is-touch-navigating .ds-cluster-title,
+  .stage.is-touch-navigating .evidence-map-thesis {
+    opacity: 0.4;
+    transition: none;
+  }
 }
 
 .canvas-world {
@@ -1172,6 +1233,66 @@ body.is-canvas-panning {
 
 .profile-pill:focus-within .profile-link:focus-visible .profile-icon {
   opacity: 0.45;
+}
+
+.mobile-card-preview {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: none;
+}
+
+.mobile-card-preview-backdrop {
+  position: absolute;
+  inset: 0;
+  padding: 0;
+  background: rgb(12 13 14 / 78%);
+  border: 0;
+}
+
+.mobile-card-preview-panel {
+  position: absolute;
+  right: 16px;
+  bottom: 16px;
+  left: 16px;
+  max-height: min(78svh, 680px);
+  overflow: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.mobile-card-preview-close {
+  display: block;
+  width: 100%;
+  min-height: 40px;
+  margin: 0 0 8px;
+  padding: 10px 16px;
+  background: #fffb00;
+  border: 0;
+  border-radius: 12px;
+  color: #111;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 16px;
+}
+
+.mobile-card-preview-shell {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 100%;
+  border-radius: 0 20px 20px;
+}
+
+.mobile-card-preview-shell .card-media-big,
+.mobile-card-preview-shell .map-frame-big {
+  width: 100%;
+  height: auto;
+}
+
+@media (pointer: coarse) {
+  .mobile-card-preview {
+    display: block;
+  }
 }
 
 @media (hover: hover) and (pointer: fine) {

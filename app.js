@@ -11,15 +11,18 @@ const zoomReadout = document.querySelector("[data-zoom-readout]");
 const infoPopover = document.querySelector(".info-popover");
 const infoPill = document.querySelector(".info-pill");
 const mobileUiQuery = window.matchMedia("(max-width: 767px)");
+const coarsePointerQuery = window.matchMedia("(pointer: coarse)");
 
 const homeScale = 1;
 const resetDurationMs = 520;
-const mobileMaxScale = 0.72;
+const minCanvasScale = 0.05;
+const mobileMaxScale = 0.48;
 
 let infiniteCanvas = null;
 let isZoomMenuOpen = false;
 let pendingCanvasState = null;
 let canvasStateFrame = 0;
+let mobileCardPreview = null;
 
 function isCanvasInteractionEnabled() {
   return infiniteCanvas?.getState().interactionEnabled !== false;
@@ -98,8 +101,25 @@ function isMobileUi() {
   return mobileUiQuery.matches;
 }
 
+function isMobileInteractionUi() {
+  return mobileUiQuery.matches || coarsePointerQuery.matches;
+}
+
 function getMaxScaleForViewport() {
   return isMobileUi() ? mobileMaxScale : 1;
+}
+
+function getCanvasScaleBounds(state = infiniteCanvas?.getState()) {
+  const minScale = Number.isFinite(state?.minScale) ? state.minScale : minCanvasScale;
+  const maxScale = Number.isFinite(state?.maxScale) ? state.maxScale : getMaxScaleForViewport();
+
+  return { minScale, maxScale };
+}
+
+function clampCanvasScale(scale, state = infiniteCanvas?.getState()) {
+  const { minScale, maxScale } = getCanvasScaleBounds(state);
+
+  return Math.min(Math.max(scale, minScale), maxScale);
 }
 
 function syncResponsiveZoomCopy() {
@@ -108,6 +128,61 @@ function syncResponsiveZoomCopy() {
   }
 
   zoomToHomeLabel.textContent = isMobileUi() ? "Zoom to max" : "Zoom to 100%";
+}
+
+function closeMobileCardPreview() {
+  mobileCardPreview?.remove();
+  mobileCardPreview = null;
+}
+
+function openMobileCardPreview(card) {
+  if (!card || !isMobileInteractionUi()) {
+    return;
+  }
+
+  const shell = card.querySelector(".card-shell");
+
+  if (!shell) {
+    return;
+  }
+
+  closeMobileCardPreview();
+
+  const preview = document.createElement("aside");
+  preview.className = "mobile-card-preview";
+  preview.setAttribute("role", "dialog");
+  preview.setAttribute("aria-modal", "true");
+  preview.setAttribute("aria-label", card.querySelector(".card-headline")?.textContent?.trim() || "Evidence card preview");
+
+  const backdrop = document.createElement("button");
+  backdrop.className = "mobile-card-preview-backdrop";
+  backdrop.type = "button";
+  backdrop.setAttribute("aria-label", "Close card preview");
+
+  const panel = document.createElement("section");
+  panel.className = "mobile-card-preview-panel";
+
+  const closeButton = document.createElement("button");
+  closeButton.className = "mobile-card-preview-close";
+  closeButton.type = "button";
+  closeButton.setAttribute("aria-label", "Close card preview");
+  closeButton.textContent = "Close";
+
+  const content = shell.cloneNode(true);
+  content.classList.add("mobile-card-preview-shell");
+
+  for (const mapFrame of content.querySelectorAll("[data-map-card]")) {
+    delete mapFrame.dataset.mapCard;
+    mapFrame.dataset.mapReady = "static";
+  }
+
+  panel.append(closeButton, content);
+  preview.append(backdrop, panel);
+  document.body.append(preview);
+
+  mobileCardPreview = preview;
+  backdrop.addEventListener("click", closeMobileCardPreview, { once: true });
+  closeButton.addEventListener("click", closeMobileCardPreview, { once: true });
 }
 
 function setInfoPopoverOpen(nextOpen) {
@@ -193,7 +268,7 @@ function getFitView() {
     const safeCenterY = padding.top + availableHeight / 2;
     const scaleX = availableWidth / bounds.width;
     const scaleY = availableHeight / bounds.height;
-    const scale = Math.min(Math.max(Math.min(scaleX, scaleY), 0.05), 1);
+    const scale = clampCanvasScale(Math.min(scaleX, scaleY), state);
 
     return {
       scale,
@@ -222,10 +297,12 @@ function getCenteredWorldView({ x, y, scale = homeScale } = {}) {
     return null;
   }
 
+  const clampedScale = clampCanvasScale(scale, state);
+
   return {
-    scale,
-    offsetX: state.viewportWidth / 2 - x * scale,
-    offsetY: state.viewportHeight / 2 - y * scale,
+    scale: clampedScale,
+    offsetX: state.viewportWidth / 2 - x * clampedScale,
+    offsetY: state.viewportHeight / 2 - y * clampedScale,
   };
 }
 
@@ -322,7 +399,7 @@ function handleZoomAction(action) {
 if (canvasElement && window.InfiniteCanvasBackground) {
   infiniteCanvas = new window.InfiniteCanvasBackground(canvasElement, {
     interactionEnabled: true,
-    minScale: 0.05,
+    minScale: minCanvasScale,
     maxScale: getMaxScaleForViewport(),
     initialScale: homeScale,
     onStateChange: (state) => {
@@ -410,12 +487,31 @@ document.addEventListener("click", (event) => {
   if (isMobileUi() && infoPopover?.dataset.mobileOpen === "true" && !infoPopover.contains(target)) {
     closeInfoPopover();
   }
+
+  if (!isMobileInteractionUi()) {
+    return;
+  }
+
+  if (!(target instanceof Element) || target.closest("a, button, .corner, .mobile-card-preview")) {
+    return;
+  }
+
+  const card = target.closest(".evidence-card");
+
+  if (!card || window.__canvasCopy?.infiniteCanvas?.shouldSuppressCanvasClick()) {
+    return;
+  }
+
+  event.preventDefault();
+  event.stopPropagation();
+  openMobileCardPreview(card);
 });
 
 document.addEventListener("keydown", (event) => {
   if (event.key === "Escape") {
     closeZoomMenu();
     closeInfoPopover();
+    closeMobileCardPreview();
   }
 
   if (!infiniteCanvas) {
@@ -452,13 +548,14 @@ document.addEventListener("keydown", (event) => {
 if (mobileUiQuery) {
   mobileUiQuery.addEventListener("change", (event) => {
     infiniteCanvas?.setScaleBounds?.({
-      minScale: 0.05,
+      minScale: minCanvasScale,
       maxScale: getMaxScaleForViewport(),
     });
     syncResponsiveZoomCopy();
 
     if (!event.matches) {
       closeInfoPopover();
+      closeMobileCardPreview();
     }
   });
 }

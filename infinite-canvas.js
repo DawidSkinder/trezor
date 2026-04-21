@@ -55,6 +55,7 @@
       this.pointerInside = false;
       this.spacePressed = false;
       this.isPanning = false;
+      this.isTouchPanning = false;
       this.dragPointerId = null;
       this.lastPointerX = 0;
       this.lastPointerY = 0;
@@ -62,6 +63,9 @@
       this.pinchGesture = null;
       this.latestPinchMetrics = null;
       this.pinchFrame = 0;
+      this.latestPanPointer = null;
+      this.panFrame = 0;
+      this.touchNavigationCount = 0;
       this.panTravel = 0;
       this.suppressClickUntil = 0;
       this.pointerCaptureElement = null;
@@ -132,9 +136,11 @@
         this.viewAnimationFrame = 0;
       }
 
+      this.cancelPanFrame();
       this.cancelPinchFrame();
       document.body.classList.remove("is-canvas-panning");
       this.stage.classList.remove("is-hand-mode", "is-panning");
+      this.forceEndTouchNavigation();
     }
 
     notifyStateChange() {
@@ -232,6 +238,10 @@
     }
 
     startPanning(event, pointer) {
+      if (event.pointerType === "touch") {
+        this.beginTouchNavigation();
+      }
+
       this.pointerInside = true;
       this.pointerX = pointer.x;
       this.pointerY = pointer.y;
@@ -239,6 +249,7 @@
       this.lastPointerY = pointer.y;
       this.panTravel = 0;
       this.dragPointerId = event.pointerId;
+      this.isTouchPanning = event.pointerType === "touch";
       this.isPanning = true;
 
       document.body.classList.add("is-canvas-panning");
@@ -269,20 +280,8 @@
       }
 
       if (this.isPanning && this.dragPointerId === event.pointerId) {
-        const deltaX = pointer.x - this.lastPointerX;
-        const deltaY = pointer.y - this.lastPointerY;
-
-        this.offsetX += deltaX;
-        this.offsetY += deltaY;
-        this.panTravel += Math.hypot(deltaX, deltaY);
-        this.lastPointerX = pointer.x;
-        this.lastPointerY = pointer.y;
-        this.pointerX = pointer.x;
-        this.pointerY = pointer.y;
-        this.pointerInside = true;
+        this.queuePanGestureUpdate(pointer);
         event.preventDefault();
-        this.notifyStateChange();
-        this.scheduleRender();
         return;
       }
 
@@ -307,6 +306,7 @@
           this.pinchGesture = null;
           this.latestPinchMetrics = null;
           this.suppressClickUntil = performance.now() + 160;
+          this.endTouchNavigation();
           event.preventDefault();
           event.stopPropagation();
           return;
@@ -316,6 +316,9 @@
       if (this.dragPointerId !== event.pointerId) {
         return;
       }
+
+      this.latestPanPointer = this.getPointerPosition(event);
+      this.flushPanGestureUpdate();
 
       if (this.panTravel > 4) {
         this.suppressClickUntil = performance.now() + 160;
@@ -371,10 +374,12 @@
       this.spacePressed = false;
       this.pointerInside = false;
       this.activeTouchPointers.clear();
+      this.cancelPanFrame();
       this.cancelPinchFrame();
       this.pinchGesture = null;
       this.latestPinchMetrics = null;
       this.stopPanning();
+      this.forceEndTouchNavigation();
       this.syncStageState();
       this.scheduleRender();
     }
@@ -425,17 +430,84 @@
 
     stopPanning() {
       const pointerId = this.dragPointerId;
+      const wasTouchPanning = this.isTouchPanning;
+
+      this.flushPanGestureUpdate();
 
       if (pointerId !== null && this.pointerCaptureElement?.hasPointerCapture(pointerId)) {
         this.pointerCaptureElement.releasePointerCapture(pointerId);
       }
 
       this.isPanning = false;
+      this.isTouchPanning = false;
       this.dragPointerId = null;
       this.pointerCaptureElement = null;
       document.body.classList.remove("is-canvas-panning");
+      if (wasTouchPanning) {
+        this.endTouchNavigation();
+      }
       this.syncStageState();
       this.notifyStateChange();
+    }
+
+    queuePanGestureUpdate(pointer) {
+      this.latestPanPointer = pointer;
+
+      if (this.panFrame) {
+        return;
+      }
+
+      this.panFrame = window.requestAnimationFrame(() => {
+        this.panFrame = 0;
+        this.applyPanGesture();
+      });
+    }
+
+    applyPanGesture() {
+      const pointer = this.latestPanPointer;
+
+      if (!this.isPanning || !pointer) {
+        this.latestPanPointer = null;
+        return;
+      }
+
+      this.latestPanPointer = null;
+
+      const deltaX = pointer.x - this.lastPointerX;
+      const deltaY = pointer.y - this.lastPointerY;
+
+      this.offsetX += deltaX;
+      this.offsetY += deltaY;
+      this.panTravel += Math.hypot(deltaX, deltaY);
+      this.lastPointerX = pointer.x;
+      this.lastPointerY = pointer.y;
+      this.pointerX = pointer.x;
+      this.pointerY = pointer.y;
+      this.pointerInside = true;
+      this.notifyStateChange();
+      this.scheduleRender();
+    }
+
+    flushPanGestureUpdate() {
+      if (this.panFrame) {
+        window.cancelAnimationFrame(this.panFrame);
+        this.panFrame = 0;
+      }
+
+      if (this.latestPanPointer) {
+        this.applyPanGesture();
+      }
+    }
+
+    cancelPanFrame() {
+      if (!this.panFrame) {
+        this.latestPanPointer = null;
+        return;
+      }
+
+      window.cancelAnimationFrame(this.panFrame);
+      this.panFrame = 0;
+      this.latestPanPointer = null;
     }
 
     getPinchPointers() {
@@ -469,6 +541,7 @@
 
       this.cancelViewAnimation();
       this.cancelPinchFrame();
+      this.beginTouchNavigation();
       this.pinchGesture = {
         startDistance: metrics.distance,
         startScale: this.scale,
@@ -530,6 +603,43 @@
       this.pinchFrame = 0;
     }
 
+    beginTouchNavigation() {
+      this.touchNavigationCount += 1;
+
+      if (this.touchNavigationCount !== 1) {
+        return;
+      }
+
+      this.stage.classList.add("is-touch-navigating");
+      document.dispatchEvent(new CustomEvent("caseforfit:touch-navigation-start"));
+    }
+
+    endTouchNavigation() {
+      if (this.touchNavigationCount <= 0) {
+        return;
+      }
+
+      this.touchNavigationCount -= 1;
+
+      if (this.touchNavigationCount > 0) {
+        return;
+      }
+
+      this.stage.classList.remove("is-touch-navigating");
+      document.dispatchEvent(new CustomEvent("caseforfit:touch-navigation-end"));
+    }
+
+    forceEndTouchNavigation() {
+      const wasTouchNavigating = this.touchNavigationCount > 0 || this.stage.classList.contains("is-touch-navigating");
+
+      this.touchNavigationCount = 0;
+      this.stage.classList.remove("is-touch-navigating");
+
+      if (wasTouchNavigating) {
+        document.dispatchEvent(new CustomEvent("caseforfit:touch-navigation-end"));
+      }
+    }
+
     syncStageState() {
       this.stage.classList.toggle("is-hand-mode", this.interactionEnabled && this.isHandModeEnabled() && !this.isPanning);
       this.stage.classList.toggle("is-panning", this.isPanning);
@@ -570,6 +680,8 @@
         toolMode: this.toolMode,
         interactionEnabled: this.interactionEnabled,
         suppressClickUntil: this.suppressClickUntil,
+        minScale: this.minScale,
+        maxScale: this.maxScale,
         viewportWidth: this.cssWidth,
         viewportHeight: this.cssHeight,
       };
@@ -605,10 +717,12 @@
       if (!this.interactionEnabled) {
         this.spacePressed = false;
         this.activeTouchPointers.clear();
+        this.cancelPanFrame();
         this.cancelPinchFrame();
         this.pinchGesture = null;
         this.latestPinchMetrics = null;
         this.stopPanning();
+        this.forceEndTouchNavigation();
       }
 
       this.syncStageState();
@@ -678,6 +792,9 @@
         return Promise.resolve();
       }
 
+      const targetScale = Number.isFinite(targetView.scale)
+        ? clamp(targetView.scale, this.minScale, this.maxScale)
+        : this.scale;
       const startScale = this.scale;
       const startOffsetX = this.offsetX;
       const startOffsetY = this.offsetY;
@@ -689,7 +806,7 @@
           const progress = clamp(elapsed / duration, 0, 1);
           const eased = 1 - Math.pow(1 - progress, 3);
 
-          this.scale = startScale + (targetView.scale - startScale) * eased;
+          this.scale = startScale + (targetScale - startScale) * eased;
           this.offsetX = startOffsetX + (targetView.offsetX - startOffsetX) * eased;
           this.offsetY = startOffsetY + (targetView.offsetY - startOffsetY) * eased;
           this.notifyStateChange();
