@@ -6,6 +6,7 @@ const resetViewButtons = Array.from(document.querySelectorAll("[data-reset-view]
 const zoomToggleButton = document.querySelector("[data-zoom-toggle]");
 const zoomMenu = document.querySelector("[data-zoom-menu]");
 const zoomMenuButtons = Array.from(document.querySelectorAll("[data-zoom-action]"));
+const zoomToHomeLabel = document.querySelector('[data-zoom-action="100"] span:first-child');
 const zoomReadout = document.querySelector("[data-zoom-readout]");
 const infoPopover = document.querySelector(".info-popover");
 const infoPill = document.querySelector(".info-pill");
@@ -13,9 +14,16 @@ const mobileUiQuery = window.matchMedia("(max-width: 767px)");
 
 const homeScale = 1;
 const resetDurationMs = 520;
+const mobileMaxScale = 0.72;
 
 let infiniteCanvas = null;
 let isZoomMenuOpen = false;
+let pendingCanvasState = null;
+let canvasStateFrame = 0;
+
+function isCanvasInteractionEnabled() {
+  return infiniteCanvas?.getState().interactionEnabled !== false;
+}
 
 function setActiveToolButton(mode) {
   for (const button of toolButtons) {
@@ -50,6 +58,27 @@ function syncCanvasWorld(state) {
   canvasWorld.style.transform = `translate(${state.offsetX}px, ${state.offsetY}px) scale(${state.scale})`;
 }
 
+function applyCanvasState(state) {
+  updateZoomReadout(state);
+  syncToolButtonsWithCanvasState(state);
+  syncCanvasWorld(state);
+}
+
+function scheduleCanvasStateSync(state) {
+  pendingCanvasState = state;
+
+  if (canvasStateFrame) {
+    return;
+  }
+
+  canvasStateFrame = window.requestAnimationFrame(() => {
+    canvasStateFrame = 0;
+    const nextState = pendingCanvasState;
+    pendingCanvasState = null;
+    applyCanvasState(nextState);
+  });
+}
+
 function setZoomMenuOpen(nextOpen) {
   if (!zoomToggleButton || !zoomMenu) {
     return;
@@ -67,6 +96,18 @@ function closeZoomMenu() {
 
 function isMobileUi() {
   return mobileUiQuery.matches;
+}
+
+function getMaxScaleForViewport() {
+  return isMobileUi() ? mobileMaxScale : 1;
+}
+
+function syncResponsiveZoomCopy() {
+  if (!zoomToHomeLabel) {
+    return;
+  }
+
+  zoomToHomeLabel.textContent = isMobileUi() ? "Zoom to max" : "Zoom to 100%";
 }
 
 function setInfoPopoverOpen(nextOpen) {
@@ -168,6 +209,26 @@ function getFitView() {
   };
 }
 
+function getCenteredWorldView({ x, y, scale = homeScale } = {}) {
+  const state = infiniteCanvas?.getState();
+
+  if (
+    !state?.viewportWidth ||
+    !state?.viewportHeight ||
+    !Number.isFinite(x) ||
+    !Number.isFinite(y) ||
+    !Number.isFinite(scale)
+  ) {
+    return null;
+  }
+
+  return {
+    scale,
+    offsetX: state.viewportWidth / 2 - x * scale,
+    offsetY: state.viewportHeight / 2 - y * scale,
+  };
+}
+
 function resetCanvasView({ animate = true, requireBounds = false } = {}) {
   if (!infiniteCanvas) {
     return false;
@@ -193,8 +254,45 @@ function resetCanvasView({ animate = true, requireBounds = false } = {}) {
   return true;
 }
 
-function setCanvasScale(nextScale) {
+function animateCanvasFitToScreen({ duration = resetDurationMs, requireBounds = false } = {}) {
   if (!infiniteCanvas) {
+    return Promise.resolve(false);
+  }
+
+  const fitView = getFitView();
+
+  if (!fitView) {
+    return Promise.resolve(false);
+  }
+
+  if (requireBounds && !getCanvasContentBounds()) {
+    return Promise.resolve(false);
+  }
+
+  return infiniteCanvas.animateViewTo(fitView, duration).then(() => true);
+}
+
+function centerOnWorldPoint({ x, y, scale = homeScale, animate = false, duration = resetDurationMs } = {}) {
+  if (!infiniteCanvas) {
+    return false;
+  }
+
+  const nextView = getCenteredWorldView({ x, y, scale });
+
+  if (!nextView) {
+    return false;
+  }
+
+  if (animate) {
+    return infiniteCanvas.animateViewTo(nextView, duration).then(() => true);
+  }
+
+  infiniteCanvas.setView(nextView);
+  return true;
+}
+
+function setCanvasScale(nextScale) {
+  if (!infiniteCanvas || !isCanvasInteractionEnabled()) {
     return;
   }
 
@@ -202,7 +300,7 @@ function setCanvasScale(nextScale) {
 }
 
 function handleZoomAction(action) {
-  if (!infiniteCanvas) {
+  if (!infiniteCanvas || !isCanvasInteractionEnabled()) {
     return;
   }
 
@@ -225,12 +323,10 @@ if (canvasElement && window.InfiniteCanvasBackground) {
   infiniteCanvas = new window.InfiniteCanvasBackground(canvasElement, {
     interactionEnabled: true,
     minScale: 0.05,
-    maxScale: 1,
+    maxScale: getMaxScaleForViewport(),
     initialScale: homeScale,
     onStateChange: (state) => {
-      updateZoomReadout(state);
-      syncToolButtonsWithCanvasState(state);
-      syncCanvasWorld(state);
+      scheduleCanvasStateSync(state);
     },
   });
 
@@ -242,14 +338,17 @@ if (canvasElement && window.InfiniteCanvasBackground) {
     getState: () => infiniteCanvas?.getState() ?? null,
     resetView: resetCanvasView,
     fitToScreen: resetCanvasView,
+    animateFitToScreen: animateCanvasFitToScreen,
+    centerOnWorldPoint,
     setScale: setCanvasScale,
+    setInteractionEnabled: (enabled) => infiniteCanvas?.setInteractionEnabled(enabled),
     setToolMode: (mode) => infiniteCanvas?.setToolMode(mode),
   };
 }
 
 for (const toolButton of toolButtons) {
   toolButton.addEventListener("click", () => {
-    if (!infiniteCanvas) {
+    if (!infiniteCanvas || !isCanvasInteractionEnabled()) {
       return;
     }
 
@@ -265,6 +364,10 @@ for (const toolButton of toolButtons) {
 
 for (const resetViewButton of resetViewButtons) {
   resetViewButton.addEventListener("click", () => {
+    if (!isCanvasInteractionEnabled()) {
+      return;
+    }
+
     resetCanvasView();
   });
 }
@@ -319,6 +422,10 @@ document.addEventListener("keydown", (event) => {
     return;
   }
 
+  if (!isCanvasInteractionEnabled()) {
+    return;
+  }
+
   if ((event.metaKey || event.ctrlKey) && event.key === "=") {
     event.preventDefault();
     setCanvasScale(infiniteCanvas.getState().scale * 1.25);
@@ -344,8 +451,16 @@ document.addEventListener("keydown", (event) => {
 
 if (mobileUiQuery) {
   mobileUiQuery.addEventListener("change", (event) => {
+    infiniteCanvas?.setScaleBounds?.({
+      minScale: 0.05,
+      maxScale: getMaxScaleForViewport(),
+    });
+    syncResponsiveZoomCopy();
+
     if (!event.matches) {
       closeInfoPopover();
     }
   });
 }
+
+syncResponsiveZoomCopy();

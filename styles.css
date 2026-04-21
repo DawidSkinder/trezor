@@ -46,6 +46,7 @@ body {
   background: var(--ds-bg);
   color: var(--ds-white);
   font-family: "Syne", Arial, sans-serif;
+  overscroll-behavior: none;
   overflow: hidden;
 }
 
@@ -102,6 +103,39 @@ body.is-canvas-panning {
 
 .stage.is-canvas-loading .canvas-world {
   visibility: hidden;
+}
+
+.stage.is-intro-running .evidence-map-thesis,
+.stage.is-intro-running .evidence-card,
+.stage.is-intro-running .ds-cluster-title,
+.stage.is-intro-running .connection-layer {
+  transition:
+    opacity 900ms cubic-bezier(0.16, 1, 0.3, 1),
+    filter 900ms cubic-bezier(0.16, 1, 0.3, 1);
+  will-change: opacity, filter;
+}
+
+.stage.is-intro-thesis .evidence-map-thesis,
+.stage.is-intro-world .evidence-map-thesis,
+.stage.is-intro-world .evidence-card,
+.stage.is-intro-world .ds-cluster-title,
+.stage.is-intro-world .connection-layer {
+  filter: none;
+  opacity: 1;
+  visibility: visible;
+}
+
+.stage.is-intro-empty .evidence-map-thesis,
+.stage.is-intro-empty .evidence-card,
+.stage.is-intro-empty .ds-cluster-title,
+.stage.is-intro-empty .connection-layer,
+.stage.is-intro-thesis .evidence-card,
+.stage.is-intro-thesis .ds-cluster-title,
+.stage.is-intro-thesis .connection-layer {
+  filter: blur(10px);
+  opacity: 0;
+  pointer-events: none;
+  visibility: visible;
 }
 
 .landing-copy {

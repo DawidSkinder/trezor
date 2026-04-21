@@ -61,6 +61,12 @@
     safeRadius: 1780,
     safeMargin: 140,
   };
+  const INTRO_TIMING = {
+    emptyHoldMs: 2000,
+    thesisHoldMs: 2000,
+    worldHoldMs: 2000,
+    fitDurationMs: 520,
+  };
 
   function parseCsv(text) {
     const rows = [];
@@ -142,6 +148,11 @@
 
   function isDebugMode() {
     return new URLSearchParams(window.location.search).has("debugRing");
+  }
+
+  function shouldSkipIntro() {
+    const params = new URLSearchParams(window.location.search);
+    return params.has("debugRing") || params.get("skipIntro") === "1";
   }
 
   function normalizeCardNo(value) {
@@ -1018,7 +1029,8 @@
   }
 
   function getDsClusterName(item) {
-    return item.card.cluster || item.card.id;
+    const card = item?.card ?? item;
+    return card?.cluster || card?.id || "";
   }
 
   function sortMasonryItems(items) {
@@ -1505,19 +1517,84 @@
     const stage = mapRoot.closest(".stage");
 
     stage?.classList.remove("is-canvas-loading");
+    stage?.classList.remove("is-intro-running", "is-intro-empty", "is-intro-thesis", "is-intro-world");
     stage?.classList.add("is-canvas-ready");
     document.dispatchEvent(new CustomEvent("caseforfit:canvas-ready"));
   }
 
-  function fitCanvasToReadyBounds(maxAttempts = 6) {
+  function setIntroStageState(stage, state) {
+    if (!stage) {
+      return;
+    }
+
+    stage.classList.remove("is-intro-empty", "is-intro-thesis", "is-intro-world");
+
+    if (state) {
+      stage.classList.add(`is-intro-${state}`);
+    }
+
+    stage.offsetWidth;
+  }
+
+  function delay(ms) {
+    return new Promise((resolve) => {
+      window.setTimeout(resolve, ms);
+    });
+  }
+
+  function getThesisCenter(root) {
+    const thesis = root.querySelector(".evidence-map-thesis");
+
+    if (!thesis) {
+      return null;
+    }
+
+    return {
+      x: thesis.offsetLeft,
+      y: thesis.offsetTop,
+    };
+  }
+
+  function centerCanvasOnThesis(thesisCenter, maxAttempts = 6) {
     return new Promise((resolve) => {
       let attempt = 0;
 
-      const tryFit = () => {
+      const tryCenter = () => {
         attempt += 1;
-        const didFit = window.__canvasCopy?.fitToScreen?.({ animate: false, requireBounds: true });
+        const didCenter = window.__canvasCopy?.centerOnWorldPoint?.({
+          x: thesisCenter?.x,
+          y: thesisCenter?.y,
+          scale: 1,
+          animate: false,
+        });
+
+        if (didCenter || attempt >= maxAttempts) {
+          resolve(Boolean(didCenter));
+          return;
+        }
+
+        window.requestAnimationFrame(tryCenter);
+      };
+
+      tryCenter();
+    });
+  }
+
+  function fitCanvasToReadyBounds({ animate = false, duration = INTRO_TIMING.fitDurationMs, maxAttempts = 6 } = {}) {
+    return new Promise((resolve) => {
+      let attempt = 0;
+
+      const tryFit = async () => {
+        attempt += 1;
+        const didFit = animate
+          ? window.__canvasCopy?.fitToScreen?.({ animate: true, requireBounds: true })
+          : window.__canvasCopy?.fitToScreen?.({ animate: false, requireBounds: true });
 
         if (didFit || attempt >= maxAttempts) {
+          if (didFit && animate) {
+            await delay(duration);
+          }
+
           resolve(Boolean(didFit));
           return;
         }
@@ -1529,8 +1606,47 @@
     });
   }
 
+  async function runIntroSequence(root) {
+    const stage = root.closest(".stage");
+    const thesisCenter = getThesisCenter(root);
+
+    if (!stage || !thesisCenter || shouldSkipIntro()) {
+      await fitCanvasToReadyBounds({ animate: false });
+      setCanvasReady();
+      return;
+    }
+
+    try {
+      window.__canvasCopy?.setInteractionEnabled?.(false);
+      await centerCanvasOnThesis(thesisCenter);
+
+      stage.classList.remove("is-canvas-loading", "is-canvas-ready");
+      stage.classList.add("is-intro-running");
+      setIntroStageState(stage, "empty");
+
+      await delay(INTRO_TIMING.emptyHoldMs);
+      setIntroStageState(stage, "thesis");
+
+      await delay(INTRO_TIMING.thesisHoldMs);
+      setIntroStageState(stage, "world");
+
+      await delay(INTRO_TIMING.worldHoldMs);
+      await fitCanvasToReadyBounds({
+        animate: true,
+        duration: INTRO_TIMING.fitDurationMs,
+      });
+
+      setCanvasReady();
+      document.dispatchEvent(new CustomEvent("caseforfit:canvas-intro-complete"));
+    } finally {
+      window.__canvasCopy?.setInteractionEnabled?.(true);
+    }
+  }
+
   function renderError(error) {
-    mapRoot.closest(".stage")?.classList.remove("is-canvas-loading");
+    mapRoot
+      .closest(".stage")
+      ?.classList.remove("is-canvas-loading", "is-intro-running", "is-intro-empty", "is-intro-thesis", "is-intro-world");
     mapRoot.replaceChildren();
     const errorBox = createElement("section", "canvas-data-error");
     errorBox.innerHTML = `
@@ -1609,8 +1725,7 @@
     connectionLayer.setAttribute("viewBox", `0 0 ${mapRoot.offsetWidth} ${mapRoot.offsetHeight}`);
     drawConnections(connectionLayer, mapRoot, renderedConnections);
     document.dispatchEvent(new CustomEvent("caseforfit:canvas-rendered"));
-    await fitCanvasToReadyBounds();
-    setCanvasReady();
+    await runIntroSequence(mapRoot);
   }
 
   renderCanvas().catch((error) => {

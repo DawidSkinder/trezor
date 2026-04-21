@@ -60,6 +60,8 @@
       this.lastPointerY = 0;
       this.activeTouchPointers = new Map();
       this.pinchGesture = null;
+      this.latestPinchMetrics = null;
+      this.pinchFrame = 0;
       this.panTravel = 0;
       this.suppressClickUntil = 0;
       this.pointerCaptureElement = null;
@@ -130,6 +132,7 @@
         this.viewAnimationFrame = 0;
       }
 
+      this.cancelPinchFrame();
       document.body.classList.remove("is-canvas-panning");
       this.stage.classList.remove("is-hand-mode", "is-panning");
     }
@@ -193,14 +196,25 @@
     }
 
     handlePointerDown(event) {
+      const pointer = this.getPointerPosition(event);
+
       if (event.pointerType === "touch" && this.canUseCanvasSurface(event.target)) {
-        this.activeTouchPointers.set(event.pointerId, this.getPointerPosition(event));
+        this.activeTouchPointers.set(event.pointerId, pointer);
+
+        if (!this.interactionEnabled) {
+          return;
+        }
 
         if (this.activeTouchPointers.size >= 2) {
           this.stopPanning();
           this.startPinchGesture();
           event.preventDefault();
           event.stopPropagation();
+          return;
+        }
+
+        if (this.canStartTouchPanning(event.target)) {
+          this.startPanning(event, pointer);
           return;
         }
       }
@@ -214,8 +228,10 @@
         return;
       }
 
-      const pointer = this.getPointerPosition(event);
+      this.startPanning(event, pointer);
+    }
 
+    startPanning(event, pointer) {
       this.pointerInside = true;
       this.pointerX = pointer.x;
       this.pointerY = pointer.y;
@@ -245,7 +261,7 @@
             this.startPinchGesture();
           }
 
-          this.updatePinchGesture();
+          this.queuePinchGestureUpdate();
           event.preventDefault();
           event.stopPropagation();
           return;
@@ -287,13 +303,10 @@
         this.activeTouchPointers.delete(event.pointerId);
 
         if (wasPinching) {
+          this.cancelPinchFrame();
           this.pinchGesture = null;
+          this.latestPinchMetrics = null;
           this.suppressClickUntil = performance.now() + 160;
-
-          if (this.activeTouchPointers.size >= 2) {
-            this.startPinchGesture();
-          }
-
           event.preventDefault();
           event.stopPropagation();
           return;
@@ -358,7 +371,9 @@
       this.spacePressed = false;
       this.pointerInside = false;
       this.activeTouchPointers.clear();
+      this.cancelPinchFrame();
       this.pinchGesture = null;
+      this.latestPinchMetrics = null;
       this.stopPanning();
       this.syncStageState();
       this.scheduleRender();
@@ -389,6 +404,18 @@
     }
 
     canStartPanning(target) {
+      return this.canUseCanvasSurface(target);
+    }
+
+    canStartTouchPanning(target) {
+      if (!(target instanceof Element)) {
+        return false;
+      }
+
+      if (target.closest("a, button")) {
+        return false;
+      }
+
       return this.canUseCanvasSurface(target);
     }
 
@@ -441,16 +468,37 @@
       }
 
       this.cancelViewAnimation();
+      this.cancelPinchFrame();
       this.pinchGesture = {
         startDistance: metrics.distance,
         startScale: this.scale,
         worldX: (metrics.centerX - this.offsetX) / this.scale,
         worldY: (metrics.centerY - this.offsetY) / this.scale,
       };
+      this.latestPinchMetrics = metrics;
     }
 
-    updatePinchGesture() {
+    queuePinchGestureUpdate() {
       const metrics = this.getPinchMetrics();
+
+      if (!this.pinchGesture || !metrics || metrics.distance <= 0) {
+        return;
+      }
+
+      this.latestPinchMetrics = metrics;
+
+      if (this.pinchFrame) {
+        return;
+      }
+
+      this.pinchFrame = window.requestAnimationFrame(() => {
+        this.pinchFrame = 0;
+        this.applyPinchGesture();
+      });
+    }
+
+    applyPinchGesture() {
+      const metrics = this.latestPinchMetrics;
 
       if (!this.pinchGesture || !metrics || metrics.distance <= 0) {
         return;
@@ -471,6 +519,15 @@
 
       this.notifyStateChange();
       this.scheduleRender();
+    }
+
+    cancelPinchFrame() {
+      if (!this.pinchFrame) {
+        return;
+      }
+
+      window.cancelAnimationFrame(this.pinchFrame);
+      this.pinchFrame = 0;
     }
 
     syncStageState() {
@@ -547,6 +604,10 @@
 
       if (!this.interactionEnabled) {
         this.spacePressed = false;
+        this.activeTouchPointers.clear();
+        this.cancelPinchFrame();
+        this.pinchGesture = null;
+        this.latestPinchMetrics = null;
         this.stopPanning();
       }
 
@@ -587,6 +648,22 @@
       this.offsetY = offsetY;
       this.notifyStateChange();
       this.scheduleRender();
+    }
+
+    setScaleBounds({ minScale = this.minScale, maxScale = this.maxScale } = {}) {
+      if (!Number.isFinite(minScale) || !Number.isFinite(maxScale) || minScale <= 0 || maxScale < minScale) {
+        return;
+      }
+
+      this.minScale = minScale;
+      this.maxScale = maxScale;
+
+      if (this.scale < this.minScale || this.scale > this.maxScale) {
+        this.setScale(this.scale);
+        return;
+      }
+
+      this.notifyStateChange();
     }
 
     animateViewTo(targetView, duration = 800) {
