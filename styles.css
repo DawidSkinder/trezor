@@ -432,7 +432,8 @@ body.is-canvas-panning {
 }
 
 .evidence-card[data-card-type="big-image"],
-.evidence-card[data-card-type="big-map"] {
+.evidence-card[data-card-type="big-map"],
+.evidence-card[data-card-type="testimonial"] {
   width: 664px;
 }
 
@@ -661,6 +662,83 @@ body.is-canvas-panning {
 
 .card-quote blockquote {
   margin: 0;
+}
+
+.testimonial-shell {
+  min-height: 560px;
+  flex-direction: row;
+  align-items: stretch;
+  gap: 32px;
+}
+
+.testimonial-portrait {
+  display: block;
+  width: 232px;
+  height: 496px;
+  flex: 0 0 232px;
+  object-fit: cover;
+  border-radius: 24px;
+}
+
+.testimonial-content {
+  display: flex;
+  min-width: 0;
+  flex: 1 1 auto;
+  flex-direction: column;
+  justify-content: center;
+  gap: 16px;
+}
+
+.testimonial-copy {
+  display: flex;
+  width: 100%;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.testimonial-quote {
+  width: 100%;
+  margin: 0;
+  font-size: 20px;
+  font-weight: 600;
+  line-height: 24px;
+  letter-spacing: 0;
+  font-feature-settings: "dlig" 1, "onum" 1, "tnum" 1;
+}
+
+.testimonial-meta {
+  display: flex;
+  width: 100%;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.testimonial-attribution {
+  display: flex;
+  width: 100%;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.testimonial-author,
+.testimonial-role {
+  width: 100%;
+  margin: 0;
+  letter-spacing: 0;
+  font-feature-settings: "dlig" 1, "onum" 1, "tnum" 1;
+}
+
+.testimonial-author {
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 20px;
+}
+
+.testimonial-role {
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 16px;
 }
 
 .map-frame {
@@ -1297,6 +1375,19 @@ body.is-canvas-panning {
 .mobile-card-preview-shell .map-frame-big {
   width: 100%;
   height: auto;
+}
+
+.mobile-card-preview-shell.testimonial-shell {
+  min-height: 0;
+  flex-direction: column;
+}
+
+.mobile-card-preview-shell .testimonial-portrait {
+  width: 100%;
+  height: auto;
+  max-height: 340px;
+  aspect-ratio: 232 / 496;
+  flex-basis: auto;
 }
 
 @media (pointer: coarse) {

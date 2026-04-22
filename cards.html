@@ -10,13 +10,13 @@
     />
     <link rel="icon" type="image/svg+xml" href="assets/ds-logo.svg" />
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    <link rel="stylesheet" href="styles.css?v=20260421-startup-gate-3" />
+    <link rel="stylesheet" href="styles.css?v=20260422-testimonial-card-1" />
     <script>
       window.__caseForFitCanvasBounds = {
         x: -848,
         y: -726.5,
         width: 2200,
-        height: 1750,
+        height: 2200,
       };
       window.__caseForFitCanvasFitPadding = {
         top: 64,
@@ -37,7 +37,7 @@
 
       <div class="canvas-world" data-canvas-world aria-hidden="false">
         <section class="cards-library" data-card-connections aria-label="Internal reusable card library">
-          <svg class="connection-layer" viewBox="0 0 2200 1750" aria-hidden="true">
+          <svg class="connection-layer" viewBox="0 0 2200 2200" aria-hidden="true">
             <line
               class="connection-line"
               x1="405"
@@ -126,6 +126,16 @@
               y2="869"
               data-connection-line
               data-connection-from="big-map"
+              data-connection-to="big-image"
+            />
+            <line
+              class="connection-line"
+              x1="749"
+              y1="1524"
+              x2="749"
+              y2="869"
+              data-connection-line
+              data-connection-from="testimonial"
               data-connection-to="big-image"
             />
           </svg>
@@ -464,6 +474,41 @@
               </div>
               <p class="card-caption">SatoshiLabs Group a.s. · Kundratka 2359/17a, Prague 8</p>
               <div class="card-divider"></div>
+            </div>
+          </article>
+
+          <article
+            class="evidence-card card-testimonial"
+            style="--card-x: 688px; --card-y: 1500px"
+            data-card-type="testimonial"
+            data-card-node="testimonial"
+            data-affiliation="ds"
+            data-connection-state="default"
+          >
+            <div class="card-connector" aria-hidden="true">
+              <img class="connector-shape connector-shape-connected" src="assets/card-connection-union.svg" alt="" />
+              <span class="connector-affiliation connector-affiliation-ds">
+                <img class="connector-affiliation-mark connector-affiliation-mark-ds" src="assets/ds_logo_card.svg" alt="" />
+              </span>
+              <span class="connector-node"></span>
+            </div>
+            <div class="card-shell testimonial-shell">
+              <img class="testimonial-portrait" src="assets/card-testimonial-portrait.jpg" alt="Portrait of Dawid Skinder" />
+              <div class="testimonial-content">
+                <div class="testimonial-copy">
+                  <img class="quote-mark" src="assets/card-quote-mark.svg" alt="" />
+                  <blockquote class="testimonial-quote">
+                    We saw CHALLENGE Studio's previous results and professionalism. Dawid (CEO) is a pro in his field and treats projects and clients' needs very seriously. They were reasonable within our budget, and we felt they really thought about our project. It didn't feel like we were just another client; They truly identified with the brand he created for us."
+                  </blockquote>
+                </div>
+                <div class="testimonial-meta">
+                  <div class="card-divider"></div>
+                  <div class="testimonial-attribution">
+                    <p class="testimonial-author">Dawid Skinder</p>
+                    <p class="testimonial-role">CHALLENGE Studio CEO</p>
+                  </div>
+                </div>
+              </div>
             </div>
           </article>
         </section>

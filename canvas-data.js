@@ -8,15 +8,17 @@
   const DATA_PATHS = {
     evidenceMap: "data/001-evidence-map.csv",
   };
-  const DATA_VERSION = "20260420-layout-clearance-2";
+  const DATA_VERSION = "20260422-testimonial-card-1";
   const DUMMY_IMAGE_SOURCES = {
     small: "data/assets/dummy_image_small.png",
     big: "data/assets/dummy_image_big.png",
+    testimonial: "data/assets/dummy_testimonial_portrait.jpg",
   };
 
   const CARD_WIDTHS = {
     "big-image": 664,
     "big-map": 664,
+    testimonial: 664,
     timeline: 1008,
     badge: 320,
     text: 320,
@@ -39,6 +41,7 @@
     timeline: 360,
     "big-image": 560,
     "big-map": 560,
+    testimonial: 608,
     image: 417,
     "text-image": 520,
     "text-image-ext": 680,
@@ -49,7 +52,16 @@
   const VISIBLE_CARD_STATES = new Set(["show", "visible", "true", "yes", "1"]);
   const MASONRY_GAP = 32;
   const DS_CLUSTER_TITLE_GAP = 48;
-  const COMPACT_MASONRY_CLUSTERS = new Set(["ds-complex-products", "ds-awards-recognition"]);
+  const DS_CLUSTER_MIN_GAP = 150;
+  const DENSE_MASONRY_CLUSTERS = new Set([
+    "ds-ai-native",
+    "ds-security-risk",
+    "ds-wallet-crypto",
+    "ds-systems-craft",
+    "ds-core-deep-mastery",
+    "ds-complex-products",
+    "ds-awards-recognition",
+  ]);
   const TREZOR_RING = {
     radius: 1320,
     centerYOffset: 72,
@@ -597,6 +609,48 @@
     appendCaptionAndDivider(shell, card.caption);
   }
 
+  function renderTestimonialCard(shell, card) {
+    shell.classList.add("testimonial-shell");
+
+    const author = card.title;
+    const role = card.kicker;
+    const quote = card.quote;
+
+    shell.append(
+      createImage(
+        "testimonial-portrait",
+        getCardImageSrc(card, DUMMY_IMAGE_SOURCES.testimonial),
+        author ? `Portrait of ${author}` : "",
+        DUMMY_IMAGE_SOURCES.testimonial,
+      ),
+    );
+
+    const content = createElement("div", "testimonial-content");
+    const copy = createElement("div", "testimonial-copy");
+    copy.append(createImage("quote-mark", "assets/card-quote-mark.svg", ""));
+    copy.append(createElement("blockquote", "testimonial-quote", quote));
+    content.append(copy);
+
+    if (author || role) {
+      const meta = createElement("div", "testimonial-meta");
+      const attribution = createElement("div", "testimonial-attribution");
+      meta.append(createDivider());
+
+      if (author) {
+        attribution.append(createElement("p", "testimonial-author", author));
+      }
+
+      if (role) {
+        attribution.append(createElement("p", "testimonial-role", role));
+      }
+
+      meta.append(attribution);
+      content.append(meta);
+    }
+
+    shell.append(content);
+  }
+
   function createMapFrame(card, className = "map-frame") {
     const mapFrame = createElement("div", className);
     mapFrame.dataset.mapCard = "";
@@ -682,6 +736,8 @@
       renderMetricCard(shell, card);
     } else if (card.type === "quote") {
       renderQuoteCard(shell, card);
+    } else if (card.type === "testimonial") {
+      renderTestimonialCard(shell, card);
     } else if (card.type === "map") {
       renderMapCard(shell, card);
     } else if (card.type === "big-map") {
@@ -984,19 +1040,33 @@
       return Math.max(1, cardCount);
     }
 
-    let best = { columns: 1, rows: cardCount, balance: cardCount - 1 };
+    let best = { columns: cardCount, rows: 1, balance: cardCount - 1 };
 
     for (let columns = 1; columns <= cardCount; columns += 1) {
       const rows = Math.ceil(cardCount / columns);
+      const balance = Math.abs(columns - rows);
+      const isWiderOrSquare = columns >= rows;
+      const bestIsWiderOrSquare = best.columns >= best.rows;
 
-      if (rows < columns) {
-        continue;
-      }
-
-      const balance = rows - columns;
-
-      if (balance < best.balance || (balance === best.balance && columns > best.columns)) {
+      if (
+        balance < best.balance ||
+        (balance === best.balance && !bestIsWiderOrSquare && isWiderOrSquare) ||
+        (balance === best.balance && bestIsWiderOrSquare === isWiderOrSquare && columns > best.columns)
+      ) {
         best = { columns, rows, balance };
+      }
+    }
+
+    if (best.rows === best.columns && best.columns > 2 && best.columns < cardCount) {
+      const widerColumns = best.columns + 1;
+      const widerRows = Math.ceil(cardCount / widerColumns);
+
+      if (widerColumns >= widerRows) {
+        best = {
+          columns: widerColumns,
+          rows: widerRows,
+          balance: Math.abs(widerColumns - widerRows),
+        };
       }
     }
 
@@ -1005,7 +1075,7 @@
 
   function getDenseMasonryColumnCount(items) {
     const baseColumnCount = getMasonryColumnCount(items);
-    return Math.min(Math.max(baseColumnCount, 2), 3);
+    return Math.min(Math.max(baseColumnCount, 2), 4);
   }
 
   function getMasonrySpan(width, columnWidth, columnCount) {
@@ -1088,12 +1158,56 @@
     const angleStep = (Math.PI * 2) / sortedRecords.length;
     const slotOffsets = sortedRecords.map((record, index) => normalizeAngle(record.sourceTheta - index * angleStep));
     const offset = getCircularMean(slotOffsets);
+    let thetas = sortedRecords.map((_, index) => normalizeAngle(offset + index * angleStep));
+
+    for (let iteration = 0; iteration < 3; iteration += 1) {
+      const minimumGaps = sortedRecords.map((record, index) => {
+        const nextIndex = (index + 1) % sortedRecords.length;
+        return (
+          getClusterAngularHalfExtent(record, thetas[index]) +
+          getClusterAngularHalfExtent(sortedRecords[nextIndex], thetas[nextIndex]) +
+          DS_CLUSTER_MIN_GAP / DS_CLUSTER_RING.radius
+        );
+      });
+      const minimumTotal = minimumGaps.reduce((total, gap) => total + gap, 0);
+
+      if (minimumTotal >= Math.PI * 2) {
+        break;
+      }
+
+      const slack = (Math.PI * 2 - minimumTotal) / sortedRecords.length;
+      const relativeThetas = [0];
+
+      for (let index = 1; index < sortedRecords.length; index += 1) {
+        relativeThetas[index] = relativeThetas[index - 1] + minimumGaps[index - 1] + slack;
+      }
+
+      const rotation = getCircularMean(thetas.map((theta, index) => normalizeAngle(theta - relativeThetas[index])));
+      thetas = relativeThetas.map((theta) => normalizeAngle(rotation + theta));
+    }
 
     return sortedRecords.map((record, index) => ({
       record,
-      theta: normalizeAngle(offset + index * angleStep),
+      theta: thetas[index],
       slotIndex: index,
     }));
+  }
+
+  function getClusterBlockDimensions(record) {
+    const titleWidth = record.titleElement.offsetWidth;
+    const titleHeight = record.titleElement.offsetHeight;
+
+    return {
+      width: Math.max(record.layout.blockWidth, titleWidth),
+      height: titleHeight + DS_CLUSTER_TITLE_GAP + record.layout.blockHeight,
+    };
+  }
+
+  function getClusterAngularHalfExtent(record, theta) {
+    const { width, height } = getClusterBlockDimensions(record);
+    const tangentHalfWidth = Math.abs(Math.sin(theta)) * (width / 2);
+    const tangentHalfHeight = Math.abs(Math.cos(theta)) * (height / 2);
+    return (tangentHalfWidth + tangentHalfHeight) / DS_CLUSTER_RING.radius;
   }
 
   function buildDenseMasonryLayout(root, sortedItems) {
@@ -1154,7 +1268,7 @@
   }
 
   function buildMasonryLayout(root, sortedItems, cluster) {
-    if (COMPACT_MASONRY_CLUSTERS.has(cluster)) {
+    if (DENSE_MASONRY_CLUSTERS.has(cluster)) {
       return buildDenseMasonryLayout(root, sortedItems);
     }
 
