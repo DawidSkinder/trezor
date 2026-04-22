@@ -933,6 +933,7 @@ body.is-canvas-panning {
 .stack-pill,
 .info-pill,
 .game-controls,
+.keyboard-popover,
 .control-button,
 .zoom-pill {
   display: flex;
@@ -1042,6 +1043,11 @@ body.is-canvas-panning {
   width: 12px;
   height: 12px;
   transition: filter var(--pill-transition);
+}
+
+.control-icon.control-icon-keyboard {
+  width: 18px;
+  height: 12px;
 }
 
 .control-button.is-active {
@@ -1201,6 +1207,10 @@ body.is-canvas-panning {
   position: relative;
 }
 
+.keyboard-popover {
+  position: relative;
+}
+
 .info-pill {
   justify-content: center;
   width: 32px;
@@ -1238,6 +1248,28 @@ body.is-canvas-panning {
     visibility 260ms step-end;
 }
 
+.keyboard-panel {
+  position: absolute;
+  top: calc(100% + 12px);
+  right: 0;
+  z-index: 4;
+  width: max-content;
+  max-width: min(360px, calc(100vw - 40px));
+  padding: 20px;
+  background: var(--ds-black);
+  border-radius: 16px;
+  box-shadow: 0 16px 48px rgb(0 0 0 / 48%);
+  color: var(--ds-white);
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transform: translateY(8px);
+  transition:
+    opacity var(--pill-transition),
+    transform var(--pill-transition),
+    visibility 260ms step-end;
+}
+
 .info-panel p {
   margin: 0;
   font-size: 12px;
@@ -1251,9 +1283,75 @@ body.is-canvas-panning {
   margin-top: 16px;
 }
 
+.keyboard-panel-title,
+.keyboard-panel-note {
+  margin: 0;
+  font-size: 12px;
+  line-height: 16px;
+  text-align: left;
+}
+
+.keyboard-panel-title {
+  margin-bottom: 14px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.keyboard-shortcuts {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+}
+
+.keyboard-shortcuts div {
+  display: grid;
+  grid-template-columns: minmax(86px, max-content) minmax(0, 1fr);
+  align-items: baseline;
+  gap: 18px;
+}
+
+.keyboard-shortcuts dt,
+.keyboard-shortcuts dd {
+  margin: 0;
+  font-size: 12px;
+  line-height: 16px;
+  text-align: left;
+}
+
+.keyboard-shortcuts dt {
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.keyboard-shortcuts dd,
+.keyboard-panel-note {
+  color: rgb(255 255 255 / 78%);
+  font-weight: 500;
+}
+
+.keyboard-panel-note {
+  max-width: 300px;
+  margin-top: 16px;
+  text-wrap: pretty;
+}
+
 .info-popover:hover .info-panel,
 .info-popover:focus-within .info-panel,
 .info-popover[data-mobile-open="true"] .info-panel {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+  transform: translateY(0);
+  transition:
+    opacity var(--pill-transition),
+    transform var(--pill-transition),
+    visibility 0s linear;
+}
+
+.keyboard-popover:hover .keyboard-panel,
+.keyboard-popover:focus-within .keyboard-panel,
+.keyboard-popover[data-mobile-open="true"] .keyboard-panel {
   opacity: 1;
   visibility: visible;
   pointer-events: auto;
@@ -1289,6 +1387,7 @@ body.is-canvas-panning {
 .control-button:focus-visible,
 .zoom-pill:focus-visible,
 .info-pill:focus-visible,
+.keyboard-pill:focus-visible,
 .profile-link:focus-visible,
 .zoom-menu-item:focus-visible {
   outline: 2px solid var(--ds-white);
@@ -1544,8 +1643,8 @@ body.is-canvas-panning {
     grid-template-columns: repeat(2, 32px);
     grid-template-areas:
       "cursor hand"
-      "zoom zoom"
-      "reset reset";
+      "keyboard reset"
+      "zoom zoom";
     justify-content: end;
     align-items: start;
     gap: 8px;
@@ -1558,6 +1657,10 @@ body.is-canvas-panning {
 
   .game-controls > .control-button[data-tool-button="hand"] {
     grid-area: hand;
+  }
+
+  .game-controls > .keyboard-popover {
+    grid-area: keyboard;
   }
 
   .game-controls > .control-button[data-reset-view] {
@@ -1624,6 +1727,23 @@ body.is-canvas-panning {
     border-radius: 14px;
   }
 
+  .keyboard-panel {
+    top: calc(100% + 12px);
+    right: 0;
+    max-width: min(300px, calc(100vw - 34px));
+    padding: 20px;
+    border-radius: 14px;
+  }
+
+  .keyboard-shortcuts {
+    gap: 8px;
+  }
+
+  .keyboard-shortcuts div {
+    grid-template-columns: 82px minmax(0, 1fr);
+    gap: 12px;
+  }
+
   .info-popover:focus-within .info-panel {
     opacity: 0;
     visibility: hidden;
@@ -1635,7 +1755,29 @@ body.is-canvas-panning {
       visibility 260ms step-end;
   }
 
+  .keyboard-popover:focus-within .keyboard-panel {
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    transform: translateY(8px);
+    transition:
+      opacity var(--pill-transition),
+      transform var(--pill-transition),
+      visibility 260ms step-end;
+  }
+
   .info-popover[data-mobile-open="true"] .info-panel {
+    opacity: 1;
+    visibility: visible;
+    pointer-events: auto;
+    transform: translateY(0);
+    transition:
+      opacity var(--pill-transition),
+      transform var(--pill-transition),
+      visibility 0s linear;
+  }
+
+  .keyboard-popover[data-mobile-open="true"] .keyboard-panel {
     opacity: 1;
     visibility: visible;
     pointer-events: auto;

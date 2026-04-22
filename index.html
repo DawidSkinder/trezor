@@ -41,9 +41,9 @@
       }
     </style>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    <link rel="stylesheet" href="styles.css?v=20260422-testimonial-card-1" />
-    <script src="infinite-canvas.js?v=20260421-intro-mobile-center-1" defer></script>
-    <script src="app.js?v=20260421-startup-gate-3" defer></script>
+    <link rel="stylesheet" href="styles.css?v=20260422-keyboard-help-1" />
+    <script src="infinite-canvas.js?v=20260422-keyboard-help-1" defer></script>
+    <script src="app.js?v=20260422-keyboard-help-1" defer></script>
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" defer></script>
     <script src="canvas-data.js?v=20260422-testimonial-card-1" defer></script>
     <script src="map-card.js?v=20260421-mobile-safe-nav-1" defer></script>
@@ -93,6 +93,48 @@
           >
             <img class="control-icon" src="assets/canvas-hand.svg" alt="" width="11" height="12" />
           </button>
+          <div class="keyboard-popover">
+            <button
+              class="control-button keyboard-pill"
+              type="button"
+              aria-label="Keyboard and mouse controls"
+              aria-controls="keyboard-panel"
+              aria-expanded="false"
+              aria-describedby="keyboard-panel"
+            >
+              <img class="control-icon control-icon-keyboard" src="assets/canvas-keyboard.svg" alt="" width="18" height="12" />
+            </button>
+            <div class="keyboard-panel" id="keyboard-panel" role="note" aria-label="Keyboard and mouse controls">
+              <p class="keyboard-panel-title">Keyboard controls</p>
+              <dl class="keyboard-shortcuts">
+                <div>
+                  <dt>R</dt>
+                  <dd>Fit canvas to screen</dd>
+                </div>
+                <div>
+                  <dt>Space</dt>
+                  <dd>Hold to pan with hand tool</dd>
+                </div>
+                <div>
+                  <dt>Cmd/Ctrl + +</dt>
+                  <dd>Zoom in</dd>
+                </div>
+                <div>
+                  <dt>Cmd/Ctrl + -</dt>
+                  <dd>Zoom out</dd>
+                </div>
+                <div>
+                  <dt>Shift + 0</dt>
+                  <dd>Zoom to 100%</dd>
+                </div>
+                <div>
+                  <dt>Shift + 1</dt>
+                  <dd>Fit canvas to screen</dd>
+                </div>
+              </dl>
+              <p class="keyboard-panel-note">Mouse: drag with the hand tool, or hold Option/Ctrl/Cmd and scroll to zoom around the pointer.</p>
+            </div>
+          </div>
           <div class="zoom-control">
             <button
               class="zoom-pill"

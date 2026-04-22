@@ -10,6 +10,8 @@ const zoomToHomeLabel = document.querySelector('[data-zoom-action="100"] span:fi
 const zoomReadout = document.querySelector("[data-zoom-readout]");
 const infoPopover = document.querySelector(".info-popover");
 const infoPill = document.querySelector(".info-pill");
+const keyboardPopover = document.querySelector(".keyboard-popover");
+const keyboardPill = document.querySelector(".keyboard-pill");
 const mobileUiQuery = window.matchMedia("(max-width: 767px)");
 const coarsePointerQuery = window.matchMedia("(pointer: coarse)");
 
@@ -220,6 +222,24 @@ function setInfoPopoverOpen(nextOpen) {
 
 function closeInfoPopover() {
   setInfoPopoverOpen(false);
+}
+
+function setKeyboardPopoverOpen(nextOpen) {
+  if (!keyboardPopover || !keyboardPill) {
+    return;
+  }
+
+  if (nextOpen) {
+    keyboardPopover.dataset.mobileOpen = "true";
+  } else {
+    delete keyboardPopover.dataset.mobileOpen;
+  }
+
+  keyboardPill.setAttribute("aria-expanded", String(nextOpen));
+}
+
+function closeKeyboardPopover() {
+  setKeyboardPopoverOpen(false);
 }
 
 function getCanvasContentBounds() {
@@ -499,6 +519,18 @@ if (infoPill) {
   });
 }
 
+if (keyboardPill) {
+  keyboardPill.addEventListener("click", (event) => {
+    if (!isMobileUi()) {
+      return;
+    }
+
+    event.preventDefault();
+    event.stopPropagation();
+    setKeyboardPopoverOpen(keyboardPopover?.dataset.mobileOpen !== "true");
+  });
+}
+
 document.addEventListener("click", (event) => {
   const target = event.target;
 
@@ -512,6 +544,10 @@ document.addEventListener("click", (event) => {
 
   if (isMobileUi() && infoPopover?.dataset.mobileOpen === "true" && !infoPopover.contains(target)) {
     closeInfoPopover();
+  }
+
+  if (isMobileUi() && keyboardPopover?.dataset.mobileOpen === "true" && !keyboardPopover.contains(target)) {
+    closeKeyboardPopover();
   }
 
   if (!isMobileInteractionUi()) {
@@ -537,6 +573,7 @@ document.addEventListener("keydown", (event) => {
   if (event.key === "Escape") {
     closeZoomMenu();
     closeInfoPopover();
+    closeKeyboardPopover();
     closeMobileCardPreview();
   }
 
@@ -581,6 +618,7 @@ if (mobileUiQuery) {
 
     if (!event.matches) {
       closeInfoPopover();
+      closeKeyboardPopover();
       closeMobileCardPreview();
     }
   });

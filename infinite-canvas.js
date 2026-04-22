@@ -341,7 +341,7 @@
     handleWheel(event) {
       if (
         !this.interactionEnabled ||
-        (!event.ctrlKey && !event.metaKey) ||
+        (!event.altKey && !event.ctrlKey && !event.metaKey) ||
         !this.canUseCanvasSurface(event.target)
       ) {
         return;
