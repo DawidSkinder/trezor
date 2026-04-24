@@ -1832,6 +1832,26 @@
     return false;
   }
 
+  async function waitForStableCanvasViewport(phase, maxAttempts = 30) {
+    const stableViewport = await window.__canvasCopy?.waitForStableViewport?.({
+      frames: 2,
+      maxAttempts,
+      phase,
+    });
+
+    if (stableViewport) {
+      recordStartupEvent("viewport-stable", {
+        phase,
+        attempts: stableViewport.attempts,
+        width: stableViewport.rectWidth,
+        height: stableViewport.rectHeight,
+        signature: stableViewport.signature,
+      });
+    }
+
+    return stableViewport ?? null;
+  }
+
   function getThesisCenter(root) {
     const thesis = root.querySelector(".evidence-map-thesis");
 
@@ -1908,76 +1928,86 @@
     });
   }
 
-  function fitCanvasToReadyBounds({
+  async function fitCanvasToReadyBounds({
     animate = false,
     duration = INTRO_TIMING.fitDurationMs,
     maxAttempts = STARTUP_GATE.maxAttempts,
     phase = "fit",
   } = {}) {
-    return new Promise((resolve) => {
-      let attempt = 0;
+    let lastFailureReason = "unknown";
 
-      const tryFit = async () => {
-        attempt += 1;
-        const state = getCanvasState();
-        const bounds = getPositiveCanvasBounds();
-        const expectedView = getVerifiedFitView(state, bounds);
+    for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+      const stableViewport = await waitForStableCanvasViewport(`${phase}-pre-fit`, 8);
+      const state = getCanvasState();
+      const bounds = getPositiveCanvasBounds();
+      const expectedView = getVerifiedFitView(state, bounds);
+      const fitViewportSignature = window.__canvasCopy?.getViewportSignature?.() ?? "";
 
-        if (!window.__canvasCopy || !isCanvasStateMeasurable(state) || !bounds || !expectedView) {
-          if (attempt >= maxAttempts) {
-            recordStartupEvent("fit-failed", {
-              phase,
-              reason: !window.__canvasCopy
-                ? "canvas-api-missing"
-                : !isCanvasStateMeasurable(state)
-                  ? "canvas-state-not-measurable"
-                  : "bounds-missing",
-              attempts: attempt,
-            });
-            resolve(false);
-            return;
-          }
+      if (!window.__canvasCopy || !stableViewport || !isCanvasStateMeasurable(state) || !bounds || !expectedView) {
+        lastFailureReason = !window.__canvasCopy
+          ? "canvas-api-missing"
+          : !stableViewport
+            ? "viewport-not-stable"
+            : !isCanvasStateMeasurable(state)
+              ? "canvas-state-not-measurable"
+              : "bounds-missing";
+        await nextFrame();
+        continue;
+      }
 
-          window.requestAnimationFrame(tryFit);
-          return;
-        }
+      const didFit = animate
+        ? await window.__canvasCopy?.animateFitToScreen?.({ duration, requireBounds: true, lockAutoFit: true })
+        : window.__canvasCopy?.fitToScreen?.({ animate: false, requireBounds: true, lockAutoFit: true });
 
-        const didFit = animate
-          ? await window.__canvasCopy?.animateFitToScreen?.({ duration, requireBounds: true })
-          : window.__canvasCopy?.fitToScreen?.({ animate: false, requireBounds: true });
+      if (!didFit) {
+        lastFailureReason = "fit-helper-returned-false";
+        await nextFrame();
+        continue;
+      }
 
-        if (didFit) {
-          const isVerified = await waitForAppliedView(expectedView, phase);
-          const appliedState = window.__canvasCopy?.getAppliedState?.() ?? getCanvasState();
+      const isInitialViewVerified = await waitForAppliedView(expectedView, phase, 12);
+      const postFitViewport = await waitForStableCanvasViewport(`${phase}-post-fit`, 8);
+      const appliedState = window.__canvasCopy?.getAppliedState?.() ?? getCanvasState();
+      const latestExpectedView = getVerifiedFitView(getCanvasState(), bounds);
+      const latestViewportSignature = window.__canvasCopy?.getViewportSignature?.() ?? "";
+      const isLatestViewVerified = isViewCloseToExpected(appliedState, latestExpectedView);
 
-          if (isVerified) {
-            recordStartupEvent("fit-verified", {
-              phase,
-              attempts: attempt,
-              scale: Number(appliedState.scale.toFixed(4)),
-              offsetX: Math.round(appliedState.offsetX),
-              offsetY: Math.round(appliedState.offsetY),
-            });
-            resolve(true);
-            return;
-          }
-        }
+      if (isInitialViewVerified && postFitViewport && isLatestViewVerified) {
+        recordStartupEvent("fit-verified", {
+          phase,
+          attempts: attempt,
+          scale: Number(appliedState.scale.toFixed(4)),
+          offsetX: Math.round(appliedState.offsetX),
+          offsetY: Math.round(appliedState.offsetY),
+          viewportWidth: postFitViewport.rectWidth,
+          viewportHeight: postFitViewport.rectHeight,
+        });
+        return true;
+      }
 
-        if (attempt >= maxAttempts) {
-          recordStartupEvent("fit-failed", {
-            phase,
-            reason: didFit ? "fit-verification-failed" : "fit-helper-returned-false",
-            attempts: attempt,
-          });
-          resolve(false);
-          return;
-        }
+      if (fitViewportSignature && latestViewportSignature && fitViewportSignature !== latestViewportSignature) {
+        recordStartupEvent("viewport-changed-after-fit", {
+          phase,
+          attempt,
+          before: fitViewportSignature,
+          after: latestViewportSignature,
+        });
+      }
 
-        window.requestAnimationFrame(tryFit);
-      };
+      lastFailureReason = !isInitialViewVerified
+        ? "fit-verification-failed"
+        : !postFitViewport
+          ? "viewport-not-stable-after-fit"
+          : "post-fit-view-drift";
+      await nextFrame();
+    }
 
-      tryFit();
+    recordStartupEvent("fit-failed", {
+      phase,
+      reason: lastFailureReason,
+      attempts: maxAttempts,
     });
+    return false;
   }
 
   async function runIntroSequence(root) {
@@ -1991,7 +2021,9 @@
         throw new Error("Canvas startup failed before ready state: fit-to-screen could not be verified.");
       }
 
+      window.__canvasCopy?.refitIfAutoLocked?.("pre-ready-final-check");
       setCanvasReady();
+      window.__canvasCopy?.refitIfAutoLocked?.("post-ready-final-check");
       return;
     }
 
@@ -2025,7 +2057,9 @@
         throw new Error("Canvas startup failed before ready state: final intro fit could not be verified.");
       }
 
+      window.__canvasCopy?.refitIfAutoLocked?.("pre-ready-final-check");
       setCanvasReady();
+      window.__canvasCopy?.refitIfAutoLocked?.("post-ready-final-check");
       document.dispatchEvent(new CustomEvent("caseforfit:canvas-intro-complete"));
     } finally {
       window.__canvasCopy?.setInteractionEnabled?.(true);

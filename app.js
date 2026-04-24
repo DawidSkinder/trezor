@@ -19,6 +19,9 @@ const homeScale = 1;
 const resetDurationMs = 520;
 const minCanvasScale = 0.05;
 const mobileMaxScale = 0.48;
+const viewportStableFrameCount = 2;
+const fitScaleTolerance = 0.002;
+const fitOffsetTolerance = 2;
 
 let infiniteCanvas = null;
 let isZoomMenuOpen = false;
@@ -26,6 +29,28 @@ let pendingCanvasState = null;
 let canvasStateFrame = 0;
 let appliedCanvasState = null;
 let mobileCardPreview = null;
+let isCanvasAutoFitLocked = true;
+let viewportAutoFitFrame = 0;
+let canvasViewportObserver = null;
+
+const autoFitDiagnostics = {
+  startedAt: performance.now(),
+  events: [],
+};
+
+window.__caseForFitAutoFitDiagnostics = autoFitDiagnostics;
+
+function recordAutoFitEvent(name, detail = {}) {
+  autoFitDiagnostics.events.push({
+    name,
+    atMs: Math.round(performance.now() - autoFitDiagnostics.startedAt),
+    ...detail,
+  });
+
+  if (autoFitDiagnostics.events.length > 120) {
+    autoFitDiagnostics.events.shift();
+  }
+}
 
 function isCanvasInteractionEnabled() {
   return infiniteCanvas?.getState().interactionEnabled !== false;
@@ -101,6 +126,120 @@ function flushCanvasStateSync() {
   const state = infiniteCanvas.getState();
   applyCanvasState(state);
   return state;
+}
+
+function nextAnimationFrame() {
+  return new Promise((resolve) => {
+    window.requestAnimationFrame(resolve);
+  });
+}
+
+function refreshCanvasViewport() {
+  return infiniteCanvas?.refreshViewport?.() ?? infiniteCanvas?.getState?.() ?? null;
+}
+
+function getCanvasViewportSnapshot({ refresh = false } = {}) {
+  if (!canvasElement || !infiniteCanvas) {
+    return null;
+  }
+
+  if (refresh) {
+    refreshCanvasViewport();
+  }
+
+  const rect = canvasElement.getBoundingClientRect();
+  const state = infiniteCanvas.getState();
+  const rectWidth = Math.round(rect.width);
+  const rectHeight = Math.round(rect.height);
+  const stateWidth = Math.round(state.viewportWidth);
+  const stateHeight = Math.round(state.viewportHeight);
+  const dpr = window.devicePixelRatio || 1;
+
+  if (
+    !Number.isFinite(rectWidth) ||
+    !Number.isFinite(rectHeight) ||
+    !Number.isFinite(stateWidth) ||
+    !Number.isFinite(stateHeight) ||
+    rectWidth <= 0 ||
+    rectHeight <= 0 ||
+    stateWidth <= 0 ||
+    stateHeight <= 0
+  ) {
+    return null;
+  }
+
+  return {
+    rectWidth,
+    rectHeight,
+    stateWidth,
+    stateHeight,
+    dpr,
+    innerWidth: window.innerWidth,
+    innerHeight: window.innerHeight,
+    visualViewportWidth: Math.round(window.visualViewport?.width ?? window.innerWidth),
+    visualViewportHeight: Math.round(window.visualViewport?.height ?? window.innerHeight),
+    maxScale: state.maxScale,
+    matchesState: rectWidth === stateWidth && rectHeight === stateHeight,
+  };
+}
+
+function getCanvasViewportSignature(snapshot = getCanvasViewportSnapshot()) {
+  if (!snapshot) {
+    return "";
+  }
+
+  return [
+    `${snapshot.rectWidth}x${snapshot.rectHeight}`,
+    `${snapshot.stateWidth}x${snapshot.stateHeight}`,
+    `dpr:${snapshot.dpr}`,
+    `vv:${snapshot.visualViewportWidth}x${snapshot.visualViewportHeight}`,
+    `max:${snapshot.maxScale}`,
+  ].join("|");
+}
+
+async function waitForStableCanvasViewport({
+  frames = viewportStableFrameCount,
+  maxAttempts = 120,
+  phase = "viewport",
+} = {}) {
+  let stableFrameCount = 0;
+  let previousSignature = "";
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    const snapshot = getCanvasViewportSnapshot({ refresh: true });
+    const signature = getCanvasViewportSignature(snapshot);
+
+    if (snapshot?.matchesState && signature && signature === previousSignature) {
+      stableFrameCount += 1;
+    } else if (snapshot?.matchesState && signature) {
+      stableFrameCount = 1;
+      previousSignature = signature;
+    } else {
+      stableFrameCount = 0;
+      previousSignature = "";
+    }
+
+    if (stableFrameCount >= frames) {
+      recordAutoFitEvent("viewport-stable", {
+        phase,
+        attempts: attempt,
+        signature,
+        width: snapshot.rectWidth,
+        height: snapshot.rectHeight,
+      });
+
+      return {
+        ...snapshot,
+        signature,
+        attempts: attempt,
+      };
+    }
+
+    await nextAnimationFrame();
+  }
+
+  recordAutoFitEvent("viewport-stable-failed", { phase, attempts: maxAttempts });
+  return null;
 }
 
 function setZoomMenuOpen(nextOpen) {
@@ -345,7 +484,120 @@ function getCenteredWorldView({ x, y, scale = homeScale } = {}) {
   };
 }
 
-function resetCanvasView({ animate = true, requireBounds = false } = {}) {
+function setCanvasAutoFitLocked(isLocked, reason = "unknown") {
+  const nextLocked = Boolean(isLocked);
+
+  if (isCanvasAutoFitLocked === nextLocked) {
+    return;
+  }
+
+  isCanvasAutoFitLocked = nextLocked;
+  recordAutoFitEvent(nextLocked ? "auto-fit-locked" : "auto-fit-unlocked", { reason });
+}
+
+function releaseCanvasAutoFitLock(reason = "user-view-change") {
+  setCanvasAutoFitLocked(false, reason);
+}
+
+function isCanvasViewCloseToFit(state = infiniteCanvas?.getState(), expected = getFitView()) {
+  if (!state || !expected) {
+    return false;
+  }
+
+  return (
+    Math.abs(state.scale - expected.scale) <= fitScaleTolerance &&
+    Math.abs(state.offsetX - expected.offsetX) <= fitOffsetTolerance &&
+    Math.abs(state.offsetY - expected.offsetY) <= fitOffsetTolerance
+  );
+}
+
+function refitCanvasIfAutoLocked(reason = "viewport-change") {
+  if (!isCanvasAutoFitLocked || !getCanvasContentBounds()) {
+    return false;
+  }
+
+  const didFit = resetCanvasView({
+    animate: false,
+    requireBounds: true,
+    lockAutoFit: true,
+  });
+
+  if (!didFit) {
+    return false;
+  }
+
+  const state = flushCanvasStateSync();
+  const expected = getFitView();
+
+  recordAutoFitEvent("auto-refit", {
+    reason,
+    scale: Number(state?.scale?.toFixed?.(4) ?? 0),
+    offsetX: Math.round(state?.offsetX ?? 0),
+    offsetY: Math.round(state?.offsetY ?? 0),
+    matchedFit: isCanvasViewCloseToFit(state, expected),
+  });
+
+  return true;
+}
+
+function scheduleAutoFitAfterViewportChange(reason = "viewport-change") {
+  if (viewportAutoFitFrame || !isCanvasAutoFitLocked) {
+    return;
+  }
+
+  viewportAutoFitFrame = window.requestAnimationFrame(async () => {
+    viewportAutoFitFrame = 0;
+
+    const stableViewport = await waitForStableCanvasViewport({
+      frames: viewportStableFrameCount,
+      maxAttempts: 30,
+      phase: reason,
+    });
+
+    if (!stableViewport) {
+      return;
+    }
+
+    refitCanvasIfAutoLocked(reason);
+  });
+}
+
+function handleCanvasViewportChange(detail = {}) {
+  recordAutoFitEvent("viewport-change", {
+    width: detail.width,
+    height: detail.height,
+    dpr: detail.dpr,
+    locked: isCanvasAutoFitLocked,
+  });
+
+  scheduleAutoFitAfterViewportChange("viewport-change");
+}
+
+function installCanvasViewportWatchers() {
+  if (!canvasElement) {
+    return;
+  }
+
+  if (window.ResizeObserver) {
+    canvasViewportObserver = new ResizeObserver(() => {
+      refreshCanvasViewport();
+      handleCanvasViewportChange(getCanvasViewportSnapshot() ?? {});
+    });
+    canvasViewportObserver.observe(canvasElement);
+  }
+
+  window.addEventListener("resize", () => {
+    refreshCanvasViewport();
+    handleCanvasViewportChange(getCanvasViewportSnapshot() ?? {});
+  });
+
+  window.visualViewport?.addEventListener("resize", () => {
+    refreshCanvasViewport();
+    handleCanvasViewportChange(getCanvasViewportSnapshot() ?? {});
+  });
+}
+
+function resetCanvasView({ animate = true, requireBounds = false, lockAutoFit = true } = {}) {
   if (!infiniteCanvas) {
     return false;
   }
@@ -367,14 +619,20 @@ function resetCanvasView({ animate = true, requireBounds = false } = {}) {
 
   if (animate) {
     infiniteCanvas.animateViewTo(homeView, resetDurationMs);
+    if (lockAutoFit) {
+      setCanvasAutoFitLocked(true, "fit-view");
+    }
     return true;
   }
 
   infiniteCanvas.setView(homeView);
+  if (lockAutoFit) {
+    setCanvasAutoFitLocked(true, "fit-view");
+  }
   return true;
 }
 
-function animateCanvasFitToScreen({ duration = resetDurationMs, requireBounds = false } = {}) {
+function animateCanvasFitToScreen({ duration = resetDurationMs, requireBounds = false, lockAutoFit = true } = {}) {
   if (!infiniteCanvas) {
     return Promise.resolve(false);
   }
@@ -389,7 +647,12 @@ function animateCanvasFitToScreen({ duration = resetDurationMs, requireBounds = 
     return Promise.resolve(false);
   }
 
-  return infiniteCanvas.animateViewTo(fitView, duration).then(() => true);
+  return infiniteCanvas.animateViewTo(fitView, duration).then(() => {
+    if (lockAutoFit) {
+      setCanvasAutoFitLocked(true, "fit-view");
+    }
+    return true;
+  });
 }
 
 function centerOnWorldPoint({ x, y, scale = homeScale, animate = false, duration = resetDurationMs } = {}) {
@@ -404,9 +667,11 @@ function centerOnWorldPoint({ x, y, scale = homeScale, animate = false, duration
   }
 
   if (animate) {
+    releaseCanvasAutoFitLock("center-on-world-point");
     return infiniteCanvas.animateViewTo(nextView, duration).then(() => true);
   }
 
+  releaseCanvasAutoFitLock("center-on-world-point");
   infiniteCanvas.setView(nextView);
   return true;
 }
@@ -416,6 +681,7 @@ function setCanvasScale(nextScale) {
     return;
   }
 
+  releaseCanvasAutoFitLock("set-scale");
   infiniteCanvas.setScale(nextScale);
 }
 
@@ -448,20 +714,31 @@ if (canvasElement && window.InfiniteCanvasBackground) {
     onStateChange: (state) => {
       scheduleCanvasStateSync(state);
     },
+    onViewportChange: handleCanvasViewportChange,
+    onUserViewChange: releaseCanvasAutoFitLock,
   });
 
   infiniteCanvas.mount();
   resetCanvasView({ animate: false, requireBounds: true });
+  installCanvasViewportWatchers();
 
   window.__canvasCopy = {
     infiniteCanvas,
     getState: () => infiniteCanvas?.getState() ?? null,
     getAppliedState: () => appliedCanvasState,
     flushState: flushCanvasStateSync,
+    refreshViewport: refreshCanvasViewport,
+    getViewportSnapshot: getCanvasViewportSnapshot,
+    getViewportSignature: getCanvasViewportSignature,
+    waitForStableViewport: waitForStableCanvasViewport,
     getFitView,
     resetView: resetCanvasView,
     fitToScreen: resetCanvasView,
     animateFitToScreen: animateCanvasFitToScreen,
+    isViewCloseToFit: isCanvasViewCloseToFit,
+    isAutoFitLocked: () => isCanvasAutoFitLocked,
+    setAutoFitLocked: setCanvasAutoFitLocked,
+    refitIfAutoLocked: refitCanvasIfAutoLocked,
     centerOnWorldPoint,
     setScale: setCanvasScale,
     setInteractionEnabled: (enabled) => infiniteCanvas?.setInteractionEnabled(enabled),
@@ -615,6 +892,7 @@ if (mobileUiQuery) {
       maxScale: getMaxScaleForViewport(),
     });
     syncResponsiveZoomCopy();
+    scheduleAutoFitAfterViewportChange("media-query-change");
 
     if (!event.matches) {
       closeInfoPopover();

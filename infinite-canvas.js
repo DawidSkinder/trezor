@@ -25,6 +25,8 @@
       this.stage = canvas.closest(".stage");
       this.ctx = canvas.getContext("2d", { alpha: false });
       this.onStateChange = options.onStateChange ?? null;
+      this.onViewportChange = options.onViewportChange ?? null;
+      this.onUserViewChange = options.onUserViewChange ?? null;
 
       this.backgroundColor = options.backgroundColor ?? "#1c1d20";
       this.baseSpacing = options.baseSpacing ?? 16;
@@ -149,6 +151,18 @@
       }
     }
 
+    notifyViewportChange(detail) {
+      if (typeof this.onViewportChange === "function") {
+        this.onViewportChange(detail);
+      }
+    }
+
+    notifyUserViewChange(reason) {
+      if (typeof this.onUserViewChange === "function") {
+        this.onUserViewChange(reason);
+      }
+    }
+
     handleResize() {
       const bounds = this.canvas.getBoundingClientRect();
       const nextWidth = Math.round(bounds.width);
@@ -158,6 +172,9 @@
       if (!nextWidth || !nextHeight) {
         return;
       }
+
+      const didViewportChange =
+        nextWidth !== this.cssWidth || nextHeight !== this.cssHeight || nextDpr !== this.dpr;
 
       this.cssWidth = nextWidth;
       this.cssHeight = nextHeight;
@@ -174,6 +191,14 @@
 
       this.notifyStateChange();
       this.scheduleRender();
+
+      if (didViewportChange) {
+        this.notifyViewportChange({
+          width: this.cssWidth,
+          height: this.cssHeight,
+          dpr: this.dpr,
+        });
+      }
     }
 
     handleKeyDown(event) {
@@ -366,6 +391,7 @@
       this.pointerInside = this.isWithinCanvas(pointer.x, pointer.y);
 
       event.preventDefault();
+      this.notifyUserViewChange("wheel-zoom");
       this.notifyStateChange();
       this.scheduleRender();
     }
@@ -475,6 +501,10 @@
 
       const deltaX = pointer.x - this.lastPointerX;
       const deltaY = pointer.y - this.lastPointerY;
+
+      if (deltaX || deltaY) {
+        this.notifyUserViewChange("pan");
+      }
 
       this.offsetX += deltaX;
       this.offsetY += deltaY;
@@ -590,6 +620,7 @@
       this.pointerY = metrics.centerY;
       this.pointerInside = this.isWithinCanvas(metrics.centerX, metrics.centerY);
 
+      this.notifyUserViewChange("pinch-zoom");
       this.notifyStateChange();
       this.scheduleRender();
     }
@@ -685,6 +716,11 @@
         viewportWidth: this.cssWidth,
         viewportHeight: this.cssHeight,
       };
+    }
+
+    refreshViewport() {
+      this.handleResize();
+      return this.getState();
     }
 
     shouldSuppressCanvasClick() {
